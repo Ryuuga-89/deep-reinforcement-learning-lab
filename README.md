@@ -43,5 +43,5 @@ deep-reinforcement-learning-lab
 │  ├─ 02_Penduram/
 │  ├─ 03_LunarLander/
 │  └─ 04_2D_Dungion/
-└─ experiments/ 動作実験など
+└─ experiments/ ライブラリの動作実験など
 ```
