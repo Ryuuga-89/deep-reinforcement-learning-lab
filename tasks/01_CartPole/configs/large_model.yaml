@@ -2,7 +2,7 @@ subtask: default
 algorithm: dqn
 
 run:
-  name: baseline
+  name: large_model
   seed: 42
   max_env_steps: 200000
   eval_episodes: 10
@@ -25,5 +25,5 @@ hyperparameters:
   target_update_interval: 1000
   loss_type: huber
   hidden_sizes:
-    - 128
-    - 128
+    - 512
+    - 512

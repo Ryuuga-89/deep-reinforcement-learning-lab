@@ -7,7 +7,7 @@ from typing import Any
 import torch
 import torch.nn as nn
 
-from deep_reinforcement_learning_lab.config import TrainConfig
+from deep_reinforcement_learning_lab.config import ExperimentConfig
 from models import QNet, build_qnet
 
 CHECKPOINT_FILENAME = "qnet.pt"
@@ -25,7 +25,7 @@ def best_checkpoint_path(log_dir: Path) -> Path:
 def save_qnet_checkpoint(
     path: Path,
     q_model: nn.Module,
-    config: TrainConfig,
+    experiment: ExperimentConfig,
     state_dim: int,
     action_dim: int,
     *,
@@ -33,14 +33,15 @@ def save_qnet_checkpoint(
     eval_score: float | None = None,
 ) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
+    hparams = experiment.hyperparameters
     payload: dict[str, Any] = {
         "state_dict": q_model.state_dict(),
         "state_dim": state_dim,
         "action_dim": action_dim,
-        "hidden_sizes": list(config.hidden_sizes),
-        "env_id": config.env_id,
-        "reward_mode": config.reward_mode,
-        "run_name": config.run_name,
+        "hidden_sizes": list(hparams.hidden_sizes),
+        "subtask": experiment.subtask,
+        "algorithm": experiment.algorithm,
+        "run_name": experiment.run.name,
     }
     if env_step is not None:
         payload["env_step"] = env_step
@@ -77,7 +78,7 @@ class BestCheckpointTracker:
         mean_eval: float,
         env_step: int,
         *,
-        config: TrainConfig,
+        experiment: ExperimentConfig,
         log_dir: Path,
         q_model: nn.Module,
         state_dim: int,
@@ -87,12 +88,12 @@ class BestCheckpointTracker:
             return False
         self.best_eval = mean_eval
         self.best_env_step = env_step
-        if not config.save_checkpoint:
+        if not experiment.run.save_checkpoint:
             return False
         self.path = save_qnet_checkpoint(
             best_checkpoint_path(log_dir),
             q_model,
-            config,
+            experiment,
             state_dim,
             action_dim,
             env_step=env_step,
