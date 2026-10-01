@@ -50,6 +50,14 @@ class DQN:
         self._env_step = 0
         self._gradient_step = 0
 
+    @property
+    def env_step(self) -> int:
+        return self._env_step
+
+    @property
+    def gradient_step(self) -> int:
+        return self._gradient_step
+
     def select_action(self, state: torch.Tensor) -> int:
         batch_state = self._ensure_single_batch(state)
         epsilon = max(
