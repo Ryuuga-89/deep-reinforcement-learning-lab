@@ -41,7 +41,7 @@ def log_eval_checkpoint_progress(
     report_progress: bool = True,
 ) -> float:
     mean_eval = evaluate_mean_episode_length(q_model, experiment)
-    logger.log_eval(env_step, mean_eval)
+    logger.log_eval_mean_episode_length(env_step, mean_eval)
     saved_best = tracker.update_if_better(
         mean_eval,
         env_step,
@@ -110,6 +110,7 @@ def train_dqn(context: TrainingContext) -> float:
     episode_index = 1
     observation, _ = env.reset(seed=run.seed + episode_index)
     episode_reward = 0.0
+    episode_length = 0
     env_step = 0
 
     with TrainingLogger(log_dir=run_dir) as logger:
@@ -127,14 +128,16 @@ def train_dqn(context: TrainingContext) -> float:
             observation = next_observation
             env_step += 1
             episode_reward += reward
+            episode_length += 1
 
             if done:
-                logger.log_episode(env_step, episode_reward)
-                logger.log_epsilon(env_step, agent)
+                logger.log_train_episode(env_step, episode_reward, episode_length)
+                logger.log_train_epsilon(env_step, agent)
                 episode_index += 1
                 if env_step < run.max_env_steps:
                     observation, _ = env.reset(seed=run.seed + episode_index)
                     episode_reward = 0.0
+                    episode_length = 0
 
             if should_log_metrics(env_step, run):
                 log_eval_checkpoint_progress(
