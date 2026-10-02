@@ -37,18 +37,18 @@ def print_run_header(
     print(f"  log_dir              {log_dir}")
     print(f"  tensorboard          uv run tensorboard --logdir {task_dir / 'runs'}")
     print("-" * 60)
-    print(f"{'Step':>7}  {'Train':>7}  {'Eval':>7}  Note")
+    print(f"{'Step':>7}  {'Train':>7}  {'EvalLen':>7}  Note")
     print("-" * 60)
 
 
 def print_progress_line(
     env_step: int,
     train_reward: float,
-    eval_avg: float,
+    eval_mean_length: float,
     *,
     note: str | None = None,
 ) -> None:
-    print(f"{env_step:7d}  {train_reward:7.1f}  {eval_avg:7.1f}  {note or ''}")
+    print(f"{env_step:7d}  {train_reward:7.1f}  {eval_mean_length:7.1f}  {note or ''}")
 
 
 def print_run_footer(
@@ -61,12 +61,14 @@ def print_run_footer(
     run = experiment.run
     print("-" * 60)
     print(f"Finished at env step {env_step} / {run.max_env_steps}")
-    print(f"Final eval ({run.eval_episodes} ep avg): {mean_eval:.1f}")
+    print(
+        f"Final eval ({run.eval_episodes} ep mean steps): {mean_eval:.1f}"
+    )
     if checkpoint_path is not None:
         print(f"Checkpoint: {checkpoint_path}")
     if best.path is not None and best.best_env_step is not None:
         print(
-            f"Best eval ({run.eval_episodes} ep avg): {best.best_eval:.1f} "
+            f"Best eval ({run.eval_episodes} ep mean steps): {best.best_eval:.1f} "
             f"at env step {best.best_env_step}"
         )
         print(f"Best checkpoint: {best.path}")

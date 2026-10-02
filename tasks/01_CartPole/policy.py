@@ -31,6 +31,7 @@ class GreedyEpisodeResult:
     """
 
     total_reward: float
+    episode_steps: int
     frames: tuple[np.ndarray, ...]
     fail_frame_index: int | None
     ended_by_termination: bool
@@ -65,9 +66,11 @@ def run_greedy_episode(
 
     fail_frame_index: int | None = None
     ended_by_termination = False
+    episode_steps = 0
     while True:
         action = greedy_action(q_model, observation)
         observation, reward, terminated, truncated, _ = env.step(action)
+        episode_steps += 1
         total_reward += reward
         if render:
             frames.append(env.render())
@@ -82,6 +85,7 @@ def run_greedy_episode(
     env.close()
     return GreedyEpisodeResult(
         total_reward=total_reward,
+        episode_steps=episode_steps,
         frames=tuple(frames if render else ()),
         fail_frame_index=fail_frame_index,
         ended_by_termination=ended_by_termination,
@@ -89,12 +93,13 @@ def run_greedy_episode(
 
 
 @torch.no_grad()
-def evaluate_mean_return(q_model: nn.Module, experiment: ExperimentConfig) -> float:
+def evaluate_mean_episode_length(q_model: nn.Module, experiment: ExperimentConfig) -> float:
+    """Greedy 方策での平均エピソード長（環境 ``step`` 回数）。報酬設計に依存しない。"""
     was_training = q_model.training
     q_model.eval()
     try:
         run = experiment.run
-        total_reward = 0.0
+        total_steps = 0
         for episode in range(run.eval_episodes):
             result = run_greedy_episode(
                 q_model,
@@ -102,7 +107,7 @@ def evaluate_mean_return(q_model: nn.Module, experiment: ExperimentConfig) -> fl
                 seed=run.eval_rollout_seed(episode),
                 render=False,
             )
-            total_reward += result.total_reward
-        return total_reward / run.eval_episodes
+            total_steps += result.episode_steps
+        return total_steps / run.eval_episodes
     finally:
         q_model.train(was_training)

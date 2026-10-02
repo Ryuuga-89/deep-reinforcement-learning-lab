@@ -18,7 +18,7 @@ from checkpoint import BestCheckpointTracker, checkpoint_path, save_qnet_checkpo
 from console import print_progress_line, print_run_footer, print_run_header
 from logger import TrainingLogger, attach_loss_logging
 from models import build_qnet
-from policy import evaluate_mean_return, obs_to_tensor
+from policy import evaluate_mean_episode_length, obs_to_tensor
 from record import record_greedy_grid_video, should_record_video
 
 
@@ -40,7 +40,7 @@ def log_eval_checkpoint_progress(
     record_video: bool,
     report_progress: bool = True,
 ) -> float:
-    mean_eval = evaluate_mean_return(q_model, experiment)
+    mean_eval = evaluate_mean_episode_length(q_model, experiment)
     logger.log_eval(env_step, mean_eval)
     saved_best = tracker.update_if_better(
         mean_eval,
@@ -175,7 +175,7 @@ def train_dqn(context: TrainingContext) -> float:
             state_dim,
             action_dim,
             env_step=env_step,
-            eval_score=mean_eval,
+            eval_mean_episode_steps=mean_eval,
         )
 
     print_run_footer(experiment, env_step, mean_eval, ckpt, tracker)

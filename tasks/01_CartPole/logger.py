@@ -21,8 +21,8 @@ class TrainingLogger:
     def log_episode(self, env_step: int, reward: float) -> None:
         self._writer.add_scalar("Reward/episode", reward, env_step)
 
-    def log_eval(self, env_step: int, mean_reward: float) -> None:
-        self._writer.add_scalar("Reward/eval", mean_reward, env_step)
+    def log_eval(self, env_step: int, mean_episode_length: float) -> None:
+        self._writer.add_scalar("Episode/length_eval", mean_episode_length, env_step)
 
     def log_loss(self, gradient_step: int, loss: float) -> None:
         self._writer.add_scalar("Loss/train", loss, gradient_step)

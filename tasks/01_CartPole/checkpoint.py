@@ -30,7 +30,7 @@ def save_qnet_checkpoint(
     action_dim: int,
     *,
     env_step: int | None = None,
-    eval_score: float | None = None,
+    eval_mean_episode_steps: float | None = None,
 ) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     hparams = experiment.hyperparameters
@@ -45,8 +45,8 @@ def save_qnet_checkpoint(
     }
     if env_step is not None:
         payload["env_step"] = env_step
-    if eval_score is not None:
-        payload["eval_score"] = eval_score
+    if eval_mean_episode_steps is not None:
+        payload["eval_mean_episode_steps"] = eval_mean_episode_steps
     torch.save(payload, path)
     return path
 
@@ -97,6 +97,6 @@ class BestCheckpointTracker:
             state_dim,
             action_dim,
             env_step=env_step,
-            eval_score=mean_eval,
+            eval_mean_episode_steps=mean_eval,
         )
         return True
