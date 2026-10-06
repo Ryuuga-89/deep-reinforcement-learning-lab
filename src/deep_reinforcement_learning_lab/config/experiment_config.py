@@ -25,7 +25,9 @@ _RUN_OPTIONAL_KEYS = frozenset(
     }
 )
 
-_DQN_HPARAM_OPTIONAL_KEYS = frozenset({"loss_type", "hidden_sizes"})
+_DQN_HPARAM_OPTIONAL_KEYS = frozenset(
+    {"loss_type", "hidden_sizes", "tau", "target_update_interval"}
+)
 
 
 @dataclass(frozen=True)
@@ -66,9 +68,10 @@ class DQNHyperparameters:
     epsilon_start: float
     epsilon_end: float
     epsilon_decay_steps: int
-    target_update_interval: int
     loss_type: LossType
     hidden_sizes: tuple[int, ...]
+    target_update_interval: int | None = None
+    tau: float | None = None
 
     @property
     def epsilon_rate(self) -> float:
@@ -81,6 +84,62 @@ class ExperimentConfig:
     algorithm: str
     run: RunConfig
     hyperparameters: DQNHyperparameters
+
+
+ExperimentFlatFields = dict[str, str | int | float | bool]
+
+
+def experiment_flat_fields(experiment: ExperimentConfig) -> ExperimentFlatFields:
+    """実験設定の平坦表現（TensorBoard TEXT / HPARAMS 用。値はスカラーのみ）。"""
+    run = experiment.run
+    hparams = experiment.hyperparameters
+    return {
+        "subtask": experiment.subtask,
+        "algorithm": experiment.algorithm,
+        "run/name": run.name,
+        "run/seed": run.seed,
+        "run/max_env_steps": run.max_env_steps,
+        "run/eval_episodes": run.eval_episodes,
+        "run/log_interval_steps": run.log_interval_steps,
+        "run/save_checkpoint": run.save_checkpoint,
+        "run/video_enabled": run.video_enabled,
+        "run/video_interval_steps": run.video_interval_steps,
+        "run/video_episodes": run.video_episodes,
+        "run/eval_seed_offset": run.eval_seed_offset,
+        "run/video_seed_offset": run.video_seed_offset,
+        "hyperparameters/gamma": hparams.gamma,
+        "hyperparameters/learning_rate": hparams.learning_rate,
+        "hyperparameters/buffer_size": hparams.buffer_size,
+        "hyperparameters/batch_size": hparams.batch_size,
+        "hyperparameters/epsilon_start": hparams.epsilon_start,
+        "hyperparameters/epsilon_end": hparams.epsilon_end,
+        "hyperparameters/epsilon_decay_steps": hparams.epsilon_decay_steps,
+        **(
+            {"hyperparameters/target_update_interval": hparams.target_update_interval}
+            if hparams.target_update_interval is not None
+            else {}
+        ),
+        **(
+            {"hyperparameters/tau": hparams.tau}
+            if hparams.tau is not None
+            else {}
+        ),
+        "hyperparameters/loss_type": hparams.loss_type,
+        "hyperparameters/hidden_sizes": ",".join(
+            str(size) for size in hparams.hidden_sizes
+        ),
+    }
+
+
+def format_experiment_flat_fields(fields: ExperimentFlatFields) -> str:
+    return "\n".join(f"{key}: {value}" for key, value in fields.items())
+
+
+def archive_experiment_yaml(run_dir: Path, config_path: Path) -> Path:
+    """使用した YAML を ``run_dir/experiment.yaml`` に保存する。"""
+    destination = run_dir / "experiment.yaml"
+    destination.write_text(config_path.resolve().read_text(encoding="utf-8"), encoding="utf-8")
+    return destination
 
 
 def resolve_run_dir(task_dir: Path, experiment: ExperimentConfig) -> Path:
@@ -129,7 +188,7 @@ def load_experiment_config(path: Path) -> ExperimentConfig:
         raise ValueError(f"hyperparameters must be a mapping: {path}")
 
     run = _parse_run_config(run_block, path)
-    if algorithm == "dqn":
+    if algorithm in ("dqn", "ddqn"):
         hyperparameters = _parse_dqn_hyperparameters(hyper_block, path)
     else:
         raise ValueError(f"unsupported algorithm: {algorithm}")
@@ -250,6 +309,29 @@ def _parse_dqn_hyperparameters(raw: dict[str, Any], path: Path) -> DQNHyperparam
     if epsilon_decay_steps <= 0:
         raise ValueError("epsilon_decay_steps must be a positive integer")
 
+    has_tau = "tau" in raw
+    has_interval = "target_update_interval" in raw
+    if has_tau and has_interval:
+        raise ValueError(
+            f"in {path}: use either tau (soft target update) or "
+            "target_update_interval (hard), not both"
+        )
+    if not has_tau and not has_interval:
+        raise ValueError(
+            f"in {path}: tau or target_update_interval is required"
+        )
+
+    tau: float | None = None
+    target_update_interval: int | None = None
+    if has_tau:
+        tau = float(raw["tau"])
+        if not 0.0 < tau <= 1.0:
+            raise ValueError("tau must be in (0, 1] when set")
+    else:
+        target_update_interval = int(raw["target_update_interval"])
+        if target_update_interval <= 0:
+            raise ValueError("target_update_interval must be a positive integer")
+
     return DQNHyperparameters(
         gamma=float(raw["gamma"]),
         learning_rate=float(raw["learning_rate"]),
@@ -258,7 +340,8 @@ def _parse_dqn_hyperparameters(raw: dict[str, Any], path: Path) -> DQNHyperparam
         epsilon_start=float(raw["epsilon_start"]),
         epsilon_end=float(raw["epsilon_end"]),
         epsilon_decay_steps=epsilon_decay_steps,
-        target_update_interval=int(raw["target_update_interval"]),
         loss_type=loss_type,
         hidden_sizes=parsed_sizes,
+        target_update_interval=target_update_interval,
+        tau=tau,
     )

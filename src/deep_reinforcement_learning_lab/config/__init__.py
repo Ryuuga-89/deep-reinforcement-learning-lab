@@ -1,8 +1,12 @@
 from deep_reinforcement_learning_lab.config.experiment_config import (
     DQNHyperparameters,
     ExperimentConfig,
+    ExperimentFlatFields,
     RunConfig,
+    archive_experiment_yaml,
     ensure_run_dir_is_new,
+    experiment_flat_fields,
+    format_experiment_flat_fields,
     load_experiment_config,
     resolve_run_dir,
 )
@@ -10,8 +14,12 @@ from deep_reinforcement_learning_lab.config.experiment_config import (
 __all__ = [
     "DQNHyperparameters",
     "ExperimentConfig",
+    "ExperimentFlatFields",
     "RunConfig",
+    "archive_experiment_yaml",
     "ensure_run_dir_is_new",
+    "experiment_flat_fields",
+    "format_experiment_flat_fields",
     "load_experiment_config",
     "resolve_run_dir",
 ]

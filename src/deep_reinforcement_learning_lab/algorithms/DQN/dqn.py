@@ -26,10 +26,24 @@ class DQN:
         epsilon_end: float,
         epsilon_rate: float,
         batch_size: int,
-        target_update_interval_step: int,
+        *,
+        target_update_interval_step: int | None = None,
         tau: float | None = None,
         loss_type: LossType = "mse",
     ) -> None:
+        if (tau is None) == (target_update_interval_step is None):
+            raise ValueError(
+                "set exactly one of tau (soft target update) or "
+                "target_update_interval_step (hard target update)"
+            )
+        if tau is not None:
+            if not 0.0 < tau <= 1.0:
+                raise ValueError("tau must be in (0, 1]")
+        else:
+            assert target_update_interval_step is not None
+            if target_update_interval_step <= 0:
+                raise ValueError("target_update_interval_step must be a positive integer")
+
         self.q_model = q_model.cpu()
         self.target_q_model = copy.deepcopy(self.q_model).cpu()
         self.target_q_model.eval()

@@ -86,3 +86,24 @@ $$y = r + \gamma (1 - \text{done}) \max_{a'} Q(\mathbf{s}', a'; \boldsymbol{\the
 
 多くの場合、リプレイバッファに1件加わったら(=環境が1ステップ進んだら)で、今回はこれを採用する。
 ただし学習ループに入る前に、十分な数のリプレイをリプレイバッファに追加しておく
+
+---
+
+# DDQN（Double DQN）
+
+## 概要
+
+DQN と同じ枠組みだが、次状態での bootstrap 目標値の計算で **行動の選択** と **その行動の Q 値の評価** を分ける。
+max 演算による Q 値の過大評価（方策崩壊の一因）を抑えるのが目的。
+
+## DQN との差分
+
+メインネットワーク更新の目標 Q 値のみが異なる。行動選択・リプレイ・ターゲット同期は DQN と同じ。
+
+次の状態 $\mathbf{s}'$ について、メインネットワークで greedy 行動 $a^* = \arg\max_a Q(\mathbf{s}', a; \boldsymbol{\theta})$ を選び、ターゲットネットワークでその行動の Q 値を読む。
+
+$$y = r + \gamma (1 - \text{done}) \, Q(\mathbf{s}', a^*; \boldsymbol{\theta}^-)$$
+
+ここで $a^* = \arg\max_a Q(\mathbf{s}', a; \boldsymbol{\theta})$（選択は $\boldsymbol{\theta}$、評価は $\boldsymbol{\theta}^-$）。
+
+実装は `DDQN` クラスが `DQN` を継承し、`update()` 内のターゲット計算だけを上記に差し替える。

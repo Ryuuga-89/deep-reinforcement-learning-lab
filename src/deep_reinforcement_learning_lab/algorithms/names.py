@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-REGISTERED_ALGORITHMS: frozenset[str] = frozenset({"dqn"})
+REGISTERED_ALGORITHMS: frozenset[str] = frozenset({"dqn", "ddqn"})
 
 
 def validate_algorithm(name: str) -> None:

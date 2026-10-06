@@ -31,9 +31,14 @@ DQNは環境を関知しない。
 * epsilon_end(float): イプシロンの終了値
 * epsilon_rate: イプシロンの減衰率。環境ステップ `t` ごとに `ε = max(ε_end, ε_start - rate * t)`。
 * batch_size(int): バッチサイズ
-* target_update_interval_step(int): ハード更新時、ターゲットを同期する間隔（**勾配更新回数**）。
-* tau(float, optional): ターゲットネットワークの更新のための混合率。定義時は `update()` のたびにソフト更新。未定義時はハード更新（上記インターバルごとに上書き）。
 * loss_type(str, optional): 損失関数（MSE / Huber など、切り替え可能）。
+
+ターゲット同期は **キーワード引数で次のどちらか一方だけ**指定する（両方・両方なしは `ValueError`）。
+
+* target_update_interval_step(int): **ハード更新**。ターゲットをメインネットで上書きする間隔（**勾配更新回数**）。正の整数。
+* tau(float): **ソフト更新**（Polyak）。`update()` のたびに `θ⁻ ← (1-τ)θ⁻ + τθ` で追従。`(0, 1]` の実数。
+
+実験 YAML ではハード用に `hyperparameters.target_update_interval`、ソフト用に `hyperparameters.tau` を使い、同じファイルに両方書かない（`ExperimentConfig` ローダーでも排他）。
 
 主要メソッド
 
@@ -61,3 +66,7 @@ DQNは環境を関知しない。
 #### UniformReplayBuffer
 
 `ReplayBuffer` の具体実装。満杯時は古い遷移から FIFO で破棄するリングバッファ。
+
+## DDQN
+
+`DDQN`（[`ddqn.py`](ddqn.py)）は `DQN` を継承する。`select_action` / `step` / ターゲット同期 / 損失は親と同一で、`update()` の bootstrap 目標値だけ Double DQN 式（オンライン net で argmax、ターゲット net で gather）に差し替える。
