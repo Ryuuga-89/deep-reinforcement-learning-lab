@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 REGISTERED_ALGORITHMS: frozenset[str] = frozenset(
-    {"dqn", "ddqn", "per_dqn", "per_ddqn"}
+    {"dqn", "ddqn", "per_dqn", "per_ddqn", "ppo"}
 )
 
 

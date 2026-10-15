@@ -1,5 +1,6 @@
 from deep_reinforcement_learning_lab.config.experiment_config import (
     DQNHyperparameters,
+    PPOHyperparameters,
     PERHyperparameters,
     ExperimentConfig,
     ExperimentFlatFields,
@@ -15,6 +16,7 @@ from deep_reinforcement_learning_lab.config.experiment_config import (
 
 __all__ = [
     "DQNHyperparameters",
+    "PPOHyperparameters",
     "PERHyperparameters",
     "ExperimentConfig",
     "ExperimentFlatFields",

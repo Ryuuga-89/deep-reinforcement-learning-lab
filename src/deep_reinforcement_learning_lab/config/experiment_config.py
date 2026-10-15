@@ -11,6 +11,7 @@ from deep_reinforcement_learning_lab.algorithms.names import validate_algorithm
 
 LossType = Literal["mse", "huber"]
 QNetType = Literal["mlp", "dueling"]
+AcType = Literal["shared", "separate"]
 
 _DEFAULT_EVAL_SEED_OFFSET = 10_000
 _DEFAULT_VIDEO_SEED_OFFSET = 20_000
@@ -31,6 +32,10 @@ _DQN_HPARAM_OPTIONAL_KEYS = frozenset(
 )
 
 _PER_HPARAM_OPTIONAL_KEYS = frozenset({"priority_epsilon"})
+
+_PPO_HPARAM_OPTIONAL_KEYS = frozenset(
+    {"hidden_sizes", "ac_type", "clip_value_coef", "max_grad_norm"}
+)
 
 
 @dataclass(frozen=True)
@@ -93,6 +98,25 @@ class PERHyperparameters(DQNHyperparameters):
 
 
 @dataclass(frozen=True)
+class PPOHyperparameters:
+    """PPO 固有のハイパーパラメータ。"""
+
+    gamma: float
+    learning_rate: float
+    gae_lambda: float
+    clip_coef: float
+    entropy_coef: float
+    value_coef: float
+    rollout_steps: int
+    n_epochs: int
+    minibatch_size: int
+    hidden_sizes: tuple[int, ...]
+    ac_type: AcType = "shared"
+    clip_value_coef: float | None = None
+    max_grad_norm: float = 0.5
+
+
+@dataclass(frozen=True)
 class SubtaskOptions:
     """サブタスク固有の環境オプション（タスク側の ``make_subtask_env`` が解釈する）。"""
 
@@ -107,7 +131,7 @@ class ExperimentConfig:
     subtask: str
     algorithm: str
     run: RunConfig
-    hyperparameters: DQNHyperparameters | PERHyperparameters
+    hyperparameters: DQNHyperparameters | PERHyperparameters | PPOHyperparameters
     subtask_options: SubtaskOptions = SubtaskOptions()
 
 
@@ -118,7 +142,7 @@ def experiment_flat_fields(experiment: ExperimentConfig) -> ExperimentFlatFields
     """実験設定の平坦表現（TensorBoard TEXT / HPARAMS 用。値はスカラーのみ）。"""
     run = experiment.run
     hparams = experiment.hyperparameters
-    return {
+    base: ExperimentFlatFields = {
         "subtask": experiment.subtask,
         "algorithm": experiment.algorithm,
         "run/name": run.name,
@@ -132,28 +156,6 @@ def experiment_flat_fields(experiment: ExperimentConfig) -> ExperimentFlatFields
         "run/video_episodes": run.video_episodes,
         "run/eval_seed_offset": run.eval_seed_offset,
         "run/video_seed_offset": run.video_seed_offset,
-        "hyperparameters/gamma": hparams.gamma,
-        "hyperparameters/learning_rate": hparams.learning_rate,
-        "hyperparameters/buffer_size": hparams.buffer_size,
-        "hyperparameters/batch_size": hparams.batch_size,
-        "hyperparameters/epsilon_start": hparams.epsilon_start,
-        "hyperparameters/epsilon_end": hparams.epsilon_end,
-        "hyperparameters/epsilon_decay_steps": hparams.epsilon_decay_steps,
-        **(
-            {"hyperparameters/target_update_interval": hparams.target_update_interval}
-            if hparams.target_update_interval is not None
-            else {}
-        ),
-        **(
-            {"hyperparameters/tau": hparams.tau}
-            if hparams.tau is not None
-            else {}
-        ),
-        "hyperparameters/loss_type": hparams.loss_type,
-        "hyperparameters/hidden_sizes": ",".join(
-            str(size) for size in hparams.hidden_sizes
-        ),
-        "hyperparameters/qnet_type": hparams.qnet_type,
         **(
             {
                 "subtask_options/center_bonus_coef": experiment.subtask_options.center_bonus_coef,
@@ -177,6 +179,55 @@ def experiment_flat_fields(experiment: ExperimentConfig) -> ExperimentFlatFields
             if experiment.subtask_options.noise_rho is not None
             else {}
         ),
+    }
+    if isinstance(hparams, PPOHyperparameters):
+        return {
+            **base,
+            "hyperparameters/gamma": hparams.gamma,
+            "hyperparameters/learning_rate": hparams.learning_rate,
+            "hyperparameters/gae_lambda": hparams.gae_lambda,
+            "hyperparameters/clip_coef": hparams.clip_coef,
+            "hyperparameters/entropy_coef": hparams.entropy_coef,
+            "hyperparameters/value_coef": hparams.value_coef,
+            "hyperparameters/rollout_steps": hparams.rollout_steps,
+            "hyperparameters/n_epochs": hparams.n_epochs,
+            "hyperparameters/minibatch_size": hparams.minibatch_size,
+            "hyperparameters/max_grad_norm": hparams.max_grad_norm,
+            "hyperparameters/hidden_sizes": ",".join(
+                str(size) for size in hparams.hidden_sizes
+            ),
+            "hyperparameters/ac_type": hparams.ac_type,
+            **(
+                {"hyperparameters/clip_value_coef": hparams.clip_value_coef}
+                if hparams.clip_value_coef is not None
+                else {}
+            ),
+        }
+
+    return {
+        **base,
+        "hyperparameters/gamma": hparams.gamma,
+        "hyperparameters/learning_rate": hparams.learning_rate,
+        "hyperparameters/buffer_size": hparams.buffer_size,
+        "hyperparameters/batch_size": hparams.batch_size,
+        "hyperparameters/epsilon_start": hparams.epsilon_start,
+        "hyperparameters/epsilon_end": hparams.epsilon_end,
+        "hyperparameters/epsilon_decay_steps": hparams.epsilon_decay_steps,
+        **(
+            {"hyperparameters/target_update_interval": hparams.target_update_interval}
+            if hparams.target_update_interval is not None
+            else {}
+        ),
+        **(
+            {"hyperparameters/tau": hparams.tau}
+            if hparams.tau is not None
+            else {}
+        ),
+        "hyperparameters/loss_type": hparams.loss_type,
+        "hyperparameters/hidden_sizes": ",".join(
+            str(size) for size in hparams.hidden_sizes
+        ),
+        "hyperparameters/qnet_type": hparams.qnet_type,
         **(
             {
                 "hyperparameters/per_alpha": hparams.per_alpha,
@@ -256,6 +307,8 @@ def load_experiment_config(path: Path) -> ExperimentConfig:
         hyperparameters = _parse_dqn_hyperparameters(hyper_block, path)
     elif algorithm in ("per_dqn", "per_ddqn"):
         hyperparameters = _parse_per_hyperparameters(hyper_block, path)
+    elif algorithm == "ppo":
+        hyperparameters = _parse_ppo_hyperparameters(hyper_block, path)
     else:
         raise ValueError(f"unsupported algorithm: {algorithm}")
 
@@ -515,4 +568,71 @@ def _parse_per_hyperparameters(raw: dict[str, Any], path: Path) -> PERHyperparam
         per_beta_start=per_beta_start,
         per_beta_end=per_beta_end,
         priority_epsilon=priority_epsilon,
+    )
+
+
+def _parse_hidden_sizes(raw: dict[str, Any], path: Path) -> tuple[int, ...]:
+    hidden_sizes = raw.get("hidden_sizes", [128, 128])
+    if not isinstance(hidden_sizes, list) or len(hidden_sizes) == 0:
+        raise ValueError("hidden_sizes must be a non-empty list of positive integers")
+    parsed_sizes = tuple(int(size) for size in hidden_sizes)
+    if any(size <= 0 for size in parsed_sizes):
+        raise ValueError("hidden_sizes must contain positive integers")
+    return parsed_sizes
+
+
+def _parse_ppo_hyperparameters(raw: dict[str, Any], path: Path) -> PPOHyperparameters:
+    allowed = {field.name for field in fields(PPOHyperparameters)}
+    unknown = set(raw) - allowed
+    if unknown:
+        raise ValueError(f"unknown hyperparameters keys in {path}: {sorted(unknown)}")
+
+    missing = sorted(
+        name for name in allowed if name not in raw and name not in _PPO_HPARAM_OPTIONAL_KEYS
+    )
+    if missing:
+        raise ValueError(f"missing required hyperparameters keys in {path}: {missing}")
+
+    ac_type = raw.get("ac_type", "shared")
+    if ac_type not in get_args(AcType):
+        raise ValueError(f"unsupported ac_type: {ac_type}")
+
+    clip_value_coef: float | None = None
+    if "clip_value_coef" in raw:
+        clip_value_coef = float(raw["clip_value_coef"])
+        if clip_value_coef <= 0.0:
+            raise ValueError("clip_value_coef must be positive when set")
+
+    rollout_steps = int(raw["rollout_steps"])
+    n_epochs = int(raw["n_epochs"])
+    minibatch_size = int(raw["minibatch_size"])
+    if rollout_steps <= 0 or n_epochs <= 0 or minibatch_size <= 0:
+        raise ValueError("rollout_steps, n_epochs, and minibatch_size must be positive")
+
+    max_grad_norm = float(raw.get("max_grad_norm", 0.5))
+    if max_grad_norm <= 0.0:
+        raise ValueError("max_grad_norm must be positive")
+
+    gae_lambda = float(raw["gae_lambda"])
+    if not 0.0 <= gae_lambda <= 1.0:
+        raise ValueError("gae_lambda must be in [0, 1]")
+
+    clip_coef = float(raw["clip_coef"])
+    if clip_coef <= 0.0:
+        raise ValueError("clip_coef must be positive")
+
+    return PPOHyperparameters(
+        gamma=float(raw["gamma"]),
+        learning_rate=float(raw["learning_rate"]),
+        gae_lambda=gae_lambda,
+        clip_coef=clip_coef,
+        entropy_coef=float(raw["entropy_coef"]),
+        value_coef=float(raw["value_coef"]),
+        rollout_steps=rollout_steps,
+        n_epochs=n_epochs,
+        minibatch_size=minibatch_size,
+        hidden_sizes=_parse_hidden_sizes(raw, path),
+        ac_type=ac_type,
+        clip_value_coef=clip_value_coef,
+        max_grad_norm=max_grad_norm,
     )
