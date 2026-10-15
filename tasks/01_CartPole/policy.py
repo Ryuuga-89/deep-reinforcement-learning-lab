@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 
 from deep_reinforcement_learning_lab.config import ExperimentConfig
-from env import make_subtask_env
+from env import make_env_for_experiment
 
 
 def obs_to_tensor(observation) -> torch.Tensor:
@@ -48,15 +48,13 @@ class GreedyEpisodeResult:
 def run_greedy_episode(
     q_model: nn.Module,
     *,
-    subtask: str,
+    experiment: ExperimentConfig,
     seed: int,
     render: bool,
 ) -> GreedyEpisodeResult:
     """1 エピソード greedy 実行。``render=True`` のときフレーム列も返す。"""
-    make_kwargs: dict[str, str] = {}
-    if render:
-        make_kwargs["render_mode"] = "rgb_array"
-    env = make_subtask_env(subtask, **make_kwargs)
+    render_mode = "rgb_array" if render else None
+    env = make_env_for_experiment(experiment, render_mode=render_mode)
 
     observation, _ = env.reset(seed=seed)
     total_reward = 0.0
@@ -103,7 +101,7 @@ def evaluate_mean_episode_length(q_model: nn.Module, experiment: ExperimentConfi
         for episode in range(run.eval_episodes):
             result = run_greedy_episode(
                 q_model,
-                subtask=experiment.subtask,
+                experiment=experiment,
                 seed=run.eval_rollout_seed(episode),
                 render=False,
             )

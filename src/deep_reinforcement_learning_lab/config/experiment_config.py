@@ -10,6 +10,7 @@ import yaml
 from deep_reinforcement_learning_lab.algorithms.names import validate_algorithm
 
 LossType = Literal["mse", "huber"]
+QNetType = Literal["mlp", "dueling"]
 
 _DEFAULT_EVAL_SEED_OFFSET = 10_000
 _DEFAULT_VIDEO_SEED_OFFSET = 20_000
@@ -26,8 +27,10 @@ _RUN_OPTIONAL_KEYS = frozenset(
 )
 
 _DQN_HPARAM_OPTIONAL_KEYS = frozenset(
-    {"loss_type", "hidden_sizes", "tau", "target_update_interval"}
+    {"loss_type", "hidden_sizes", "tau", "target_update_interval", "qnet_type"}
 )
+
+_PER_HPARAM_OPTIONAL_KEYS = frozenset({"priority_epsilon"})
 
 
 @dataclass(frozen=True)
@@ -72,6 +75,7 @@ class DQNHyperparameters:
     hidden_sizes: tuple[int, ...]
     target_update_interval: int | None = None
     tau: float | None = None
+    qnet_type: QNetType = "mlp"
 
     @property
     def epsilon_rate(self) -> float:
@@ -79,11 +83,32 @@ class DQNHyperparameters:
 
 
 @dataclass(frozen=True)
+class PERHyperparameters(DQNHyperparameters):
+    """DQN hyperparameters plus prioritized replay settings."""
+
+    per_alpha: float = 0.6
+    per_beta_start: float = 0.4
+    per_beta_end: float = 1.0
+    priority_epsilon: float = 1e-6
+
+
+@dataclass(frozen=True)
+class SubtaskOptions:
+    """サブタスク固有の環境オプション（タスク側の ``make_subtask_env`` が解釈する）。"""
+
+    center_bonus_coef: float | None = None
+    move_alpha: float | None = None
+    move_beta: int | None = None
+    noise_rho: float | None = None
+
+
+@dataclass(frozen=True)
 class ExperimentConfig:
     subtask: str
     algorithm: str
     run: RunConfig
-    hyperparameters: DQNHyperparameters
+    hyperparameters: DQNHyperparameters | PERHyperparameters
+    subtask_options: SubtaskOptions = SubtaskOptions()
 
 
 ExperimentFlatFields = dict[str, str | int | float | bool]
@@ -128,6 +153,40 @@ def experiment_flat_fields(experiment: ExperimentConfig) -> ExperimentFlatFields
         "hyperparameters/hidden_sizes": ",".join(
             str(size) for size in hparams.hidden_sizes
         ),
+        "hyperparameters/qnet_type": hparams.qnet_type,
+        **(
+            {
+                "subtask_options/center_bonus_coef": experiment.subtask_options.center_bonus_coef,
+            }
+            if experiment.subtask_options.center_bonus_coef is not None
+            else {}
+        ),
+        **(
+            {
+                "subtask_options/move_alpha": experiment.subtask_options.move_alpha,
+                "subtask_options/move_beta": experiment.subtask_options.move_beta,
+            }
+            if experiment.subtask_options.move_alpha is not None
+            and experiment.subtask_options.move_beta is not None
+            else {}
+        ),
+        **(
+            {
+                "subtask_options/noise_rho": experiment.subtask_options.noise_rho,
+            }
+            if experiment.subtask_options.noise_rho is not None
+            else {}
+        ),
+        **(
+            {
+                "hyperparameters/per_alpha": hparams.per_alpha,
+                "hyperparameters/per_beta_start": hparams.per_beta_start,
+                "hyperparameters/per_beta_end": hparams.per_beta_end,
+                "hyperparameters/priority_epsilon": hparams.priority_epsilon,
+            }
+            if isinstance(hparams, PERHyperparameters)
+            else {}
+        ),
     }
 
 
@@ -167,7 +226,7 @@ def load_experiment_config(path: Path) -> ExperimentConfig:
     if not isinstance(raw, dict):
         raise ValueError(f"config must be a mapping: {path}")
 
-    allowed_top = {"subtask", "algorithm", "run", "hyperparameters"}
+    allowed_top = {"subtask", "algorithm", "run", "hyperparameters", "subtask_options"}
     unknown_top = set(raw) - allowed_top
     if unknown_top:
         raise ValueError(f"unknown config keys in {path}: {sorted(unknown_top)}")
@@ -188,8 +247,15 @@ def load_experiment_config(path: Path) -> ExperimentConfig:
         raise ValueError(f"hyperparameters must be a mapping: {path}")
 
     run = _parse_run_config(run_block, path)
+    subtask_options = _parse_subtask_options(
+        subtask.strip(),
+        raw.get("subtask_options"),
+        path,
+    )
     if algorithm in ("dqn", "ddqn"):
         hyperparameters = _parse_dqn_hyperparameters(hyper_block, path)
+    elif algorithm in ("per_dqn", "per_ddqn"):
+        hyperparameters = _parse_per_hyperparameters(hyper_block, path)
     else:
         raise ValueError(f"unsupported algorithm: {algorithm}")
 
@@ -198,7 +264,55 @@ def load_experiment_config(path: Path) -> ExperimentConfig:
         algorithm=algorithm.strip(),
         run=run,
         hyperparameters=hyperparameters,
+        subtask_options=subtask_options,
     )
+
+
+def _parse_subtask_options(
+    subtask: str,
+    block: Any,
+    path: Path,
+) -> SubtaskOptions:
+    if block is None:
+        block = {}
+    if not isinstance(block, dict):
+        raise ValueError(f"subtask_options must be a mapping: {path}")
+
+    if subtask == "center":
+        unknown = set(block) - {"center_bonus_coef"}
+        if unknown:
+            raise ValueError(f"unknown subtask_options keys in {path}: {sorted(unknown)}")
+        center_bonus_coef = float(block.get("center_bonus_coef", 1.0))
+        if center_bonus_coef < 0.0:
+            raise ValueError(f"center_bonus_coef must be non-negative: {path}")
+        return SubtaskOptions(center_bonus_coef=center_bonus_coef)
+
+    if subtask == "move":
+        unknown = set(block) - {"move_alpha", "move_beta"}
+        if unknown:
+            raise ValueError(f"unknown subtask_options keys in {path}: {sorted(unknown)}")
+        move_alpha = float(block.get("move_alpha", 1.0))
+        if move_alpha < 0.0:
+            raise ValueError(f"move_alpha must be non-negative: {path}")
+        raw_beta = block.get("move_beta", 100)
+        if isinstance(raw_beta, bool) or not isinstance(raw_beta, int) or not 1 <= raw_beta <= 500:
+            raise ValueError(f"move_beta must be an integer in 1..500: {path}")
+        return SubtaskOptions(move_alpha=move_alpha, move_beta=raw_beta)
+
+    if subtask == "noise":
+        unknown = set(block) - {"noise_rho"}
+        if unknown:
+            raise ValueError(f"unknown subtask_options keys in {path}: {sorted(unknown)}")
+        noise_rho = float(block.get("noise_rho", 0.1))
+        if noise_rho < 0.0:
+            raise ValueError(f"noise_rho must be non-negative: {path}")
+        return SubtaskOptions(noise_rho=noise_rho)
+
+    if block:
+        raise ValueError(
+            f"subtask_options is only supported for subtasks 'center', 'move', and 'noise': {path}"
+        )
+    return SubtaskOptions()
 
 
 def _parse_run_config(raw: dict[str, Any], path: Path) -> RunConfig:
@@ -332,6 +446,10 @@ def _parse_dqn_hyperparameters(raw: dict[str, Any], path: Path) -> DQNHyperparam
         if target_update_interval <= 0:
             raise ValueError("target_update_interval must be a positive integer")
 
+    qnet_type = raw.get("qnet_type", "mlp")
+    if qnet_type not in get_args(QNetType):
+        raise ValueError(f"unsupported qnet_type: {qnet_type}")
+
     return DQNHyperparameters(
         gamma=float(raw["gamma"]),
         learning_rate=float(raw["learning_rate"]),
@@ -344,4 +462,57 @@ def _parse_dqn_hyperparameters(raw: dict[str, Any], path: Path) -> DQNHyperparam
         hidden_sizes=parsed_sizes,
         target_update_interval=target_update_interval,
         tau=tau,
+        qnet_type=qnet_type,
+    )
+
+
+def _parse_per_hyperparameters(raw: dict[str, Any], path: Path) -> PERHyperparameters:
+    allowed = {field.name for field in fields(PERHyperparameters)}
+    unknown = set(raw) - allowed
+    if unknown:
+        raise ValueError(f"unknown hyperparameters keys in {path}: {sorted(unknown)}")
+
+    optional = _DQN_HPARAM_OPTIONAL_KEYS | _PER_HPARAM_OPTIONAL_KEYS
+    missing = sorted(
+        name for name in allowed if name not in raw and name not in optional
+    )
+    if missing:
+        raise ValueError(f"missing required hyperparameters keys in {path}: {missing}")
+
+    dqn_field_names = {field.name for field in fields(DQNHyperparameters)}
+    dqn_raw = {key: value for key, value in raw.items() if key in dqn_field_names}
+    dqn = _parse_dqn_hyperparameters(dqn_raw, path)
+
+    per_alpha = float(raw["per_alpha"])
+    if not 0.0 <= per_alpha <= 1.0:
+        raise ValueError("per_alpha must be in [0, 1]")
+
+    per_beta_start = float(raw["per_beta_start"])
+    per_beta_end = float(raw["per_beta_end"])
+    if not 0.0 <= per_beta_start <= 1.0:
+        raise ValueError("per_beta_start must be in [0, 1]")
+    if not 0.0 <= per_beta_end <= 1.0:
+        raise ValueError("per_beta_end must be in [0, 1]")
+
+    priority_epsilon = float(raw.get("priority_epsilon", 1e-6))
+    if priority_epsilon < 0.0:
+        raise ValueError("priority_epsilon must be non-negative")
+
+    return PERHyperparameters(
+        gamma=dqn.gamma,
+        learning_rate=dqn.learning_rate,
+        buffer_size=dqn.buffer_size,
+        batch_size=dqn.batch_size,
+        epsilon_start=dqn.epsilon_start,
+        epsilon_end=dqn.epsilon_end,
+        epsilon_decay_steps=dqn.epsilon_decay_steps,
+        loss_type=dqn.loss_type,
+        hidden_sizes=dqn.hidden_sizes,
+        target_update_interval=dqn.target_update_interval,
+        tau=dqn.tau,
+        qnet_type=dqn.qnet_type,
+        per_alpha=per_alpha,
+        per_beta_start=per_beta_start,
+        per_beta_end=per_beta_end,
+        priority_epsilon=priority_epsilon,
     )

@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 
 from deep_reinforcement_learning_lab.config import ExperimentConfig
-from models import QNet, build_qnet
+from models import build_q_model
 
 CHECKPOINT_FILENAME = "qnet.pt"
 BEST_CHECKPOINT_FILENAME = "qnet_best.pt"
@@ -42,6 +42,7 @@ def save_qnet_checkpoint(
         "subtask": experiment.subtask,
         "algorithm": experiment.algorithm,
         "run_name": experiment.run.name,
+        "qnet_type": hparams.qnet_type,
     }
     if env_step is not None:
         payload["env_step"] = env_step
@@ -51,7 +52,7 @@ def save_qnet_checkpoint(
     return path
 
 
-def load_qnet_checkpoint(path: Path, map_location: str | torch.device = "cpu") -> QNet:
+def load_qnet_checkpoint(path: Path, map_location: str | torch.device = "cpu") -> nn.Module:
     payload = torch.load(path, map_location=map_location, weights_only=False)
     if not isinstance(payload, dict) or "state_dict" not in payload:
         raise ValueError(f"invalid checkpoint format: {path}")
@@ -59,7 +60,8 @@ def load_qnet_checkpoint(path: Path, map_location: str | torch.device = "cpu") -
     state_dim = int(payload["state_dim"])
     action_dim = int(payload["action_dim"])
     hidden_sizes = tuple(int(size) for size in payload["hidden_sizes"])
-    q_model = build_qnet(state_dim, action_dim, hidden_sizes)
+    qnet_type = payload.get("qnet_type", "mlp")
+    q_model = build_q_model(qnet_type, state_dim, action_dim, hidden_sizes)
     q_model.load_state_dict(payload["state_dict"])
     q_model.eval()
     return q_model

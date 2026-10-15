@@ -26,11 +26,8 @@ STEP_OVERLAY_COLOR = (0, 0, 0)
 STEP_OVERLAY_FONT_DIVISOR = 3
 STEP_OVERLAY_MIN_FONT_SIZE = 36
 STEP_OVERLAY_MARGIN_DIVISOR = 24
-_STEP_FONT_CANDIDATES = (
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-    "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
-)
+# システム TTF（apt で後から入った DejaVu 等）は使わない。baseline〜more_deep_model 時と同じ
+# Pillow 同梱のビットマップフォントに固定し、環境差で見た目が変わらないようにする。
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,15 +97,8 @@ def _overlay_font_size(cell_height: int, cell_width: int) -> int:
 
 
 @lru_cache(maxsize=8)
-def _overlay_font(cell_height: int, cell_width: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+def _overlay_font(cell_height: int, cell_width: int) -> ImageFont.ImageFont:
     size = _overlay_font_size(cell_height, cell_width)
-    for path in _STEP_FONT_CANDIDATES:
-        if not Path(path).is_file():
-            continue
-        try:
-            return ImageFont.truetype(path, size)
-        except OSError:
-            continue
     return ImageFont.load_default(size=size)
 
 
@@ -116,7 +106,7 @@ def _overlay_cell_step(
     cell: np.ndarray,
     step: int,
     *,
-    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    font: ImageFont.ImageFont,
     margin: int,
 ) -> np.ndarray:
     cell_h, cell_w = int(cell.shape[0]), int(cell.shape[1])
@@ -136,7 +126,7 @@ def _render_cell(
     time_index: int,
     timeline: _GridTimeline,
     *,
-    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    font: ImageFont.ImageFont,
     margin: int,
 ) -> np.ndarray:
     frame_index = min(time_index, len(rollout.frames) - 1)
@@ -241,7 +231,7 @@ def record_greedy_grid_video(
     rollouts = tuple(
         run_greedy_episode(
             q_model,
-            subtask=experiment.subtask,
+            experiment=experiment,
             seed=run.video_rollout_seed(episode),
             render=True,
         )

@@ -9,13 +9,16 @@ from deep_reinforcement_learning_lab.algorithms.registry import (
     run_training,
 )
 from deep_reinforcement_learning_lab.config import load_experiment_config
-from env import make_subtask_env
-from train_dqn import train_dqn
+from env import make_env_for_experiment
+from train_dqn import train_ddqn, train_dqn, train_per_ddqn, train_per_dqn
 
 TASK_DIR = Path(__file__).resolve().parent
-DEFAULT_CONFIG_PATH = TASK_DIR / "configs" / "baseline.yaml"
+DEFAULT_CONFIG_PATH = TASK_DIR / "configs" / "default" / "baseline.yaml"
 
 register_algorithm("dqn", train_dqn)
+register_algorithm("ddqn", train_ddqn)
+register_algorithm("per_dqn", train_per_dqn)
+register_algorithm("per_ddqn", train_per_ddqn)
 
 
 def resolve_config_path(arg: str | None) -> Path:
@@ -32,10 +35,8 @@ def main() -> None:
     if not config_path.is_file():
         raise FileNotFoundError(f"config file not found: {config_path}")
     experiment = load_experiment_config(config_path)
-    subtask = experiment.subtask
-
     def make_env(*, render_mode: str | None = None):
-        return make_subtask_env(subtask, render_mode=render_mode)
+        return make_env_for_experiment(experiment, render_mode=render_mode)
 
     context = TrainingContext(
         experiment=experiment,

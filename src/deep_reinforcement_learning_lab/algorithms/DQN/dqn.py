@@ -111,9 +111,7 @@ class DQN:
         q_values = self.q_model(states)
         q_sa = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
 
-        with torch.no_grad():
-            next_q = self.target_q_model(next_states).max(dim=1).values
-            targets = rewards + self.gamma * (1.0 - dones) * next_q
+        targets = self._compute_bootstrap_targets(rewards, next_states, dones)
 
         loss = self._compute_loss(q_sa, targets)
 
@@ -140,12 +138,29 @@ class DQN:
         else:
             self.target_q_model.load_state_dict(self.q_model.state_dict())
 
-    def _compute_loss(self, q_sa: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def _compute_bootstrap_targets(
+        self,
+        rewards: torch.Tensor,
+        next_states: torch.Tensor,
+        dones: torch.Tensor,
+    ) -> torch.Tensor:
+        with torch.no_grad():
+            next_q = self.target_q_model(next_states).max(dim=1).values
+            return rewards + self.gamma * (1.0 - dones) * next_q
+
+    def _compute_elementwise_loss(
+        self,
+        q_sa: torch.Tensor,
+        targets: torch.Tensor,
+    ) -> torch.Tensor:
         if self.loss_type == "huber":
-            return F.smooth_l1_loss(q_sa, targets)
+            return F.smooth_l1_loss(q_sa, targets, reduction="none")
         if self.loss_type == "mse":
-            return F.mse_loss(q_sa, targets)
+            return F.mse_loss(q_sa, targets, reduction="none")
         raise ValueError(f"unsupported loss_type: {self.loss_type}")
+
+    def _compute_loss(self, q_sa: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        return self._compute_elementwise_loss(q_sa, targets).mean()
 
     @staticmethod
     def _ensure_single_batch(state: torch.Tensor) -> torch.Tensor:

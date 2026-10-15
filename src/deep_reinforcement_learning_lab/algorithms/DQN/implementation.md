@@ -70,3 +70,18 @@ DQNは環境を関知しない。
 ## DDQN
 
 `DDQN`（[`ddqn.py`](ddqn.py)）は `DQN` を継承する。`select_action` / `step` / ターゲット同期 / 損失は親と同一で、`update()` の bootstrap 目標値だけ Double DQN 式（オンライン net で argmax、ターゲット net で gather）に差し替える。
+
+## PER（`PER_DQN` / `PER_DDQN`）
+
+[`per_dqn.py`](per_dqn.py) は `DQN` / `DDQN` を継承し、リプレイを [`prioritized_replay_buffer.py`](prioritized_replay_buffer.py) の `PrioritizedReplayBuffer`（SumTree）に差し替える。
+
+* `sample` は遷移に加え **重要度サンプリング重み**と **バッファ内インデックス**を返す。
+* 損失は TD 誤差に PER 重みを乗算したあとバッチ平均（[`note.md`](note.md) の式）。
+* `update()` 後にサンプルしたインデックスへ新しい優先度（\(|δ| + \epsilon\)）を書き戻す。
+* `per_beta` は内部の **勾配更新回数**に応じて `per_beta_start` から `per_beta_end` まで線形に増加する。上限ステップ数 `beta_anneal_steps` はタスク runner が渡す（CartPole では `run.max_env_steps`）。
+
+## Dueling と実験 YAML
+
+Dueling の式は [`note.md`](note.md) の Dueling DQN 節。`src` の DQN クラスは Q ネットの入出力形状だけを仮定し、アーキテクチャはタスク側の `nn.Module` に委ねる。
+
+CartPole では `algorithm` を増やさず、`hyperparameters.qnet_type: dueling` で `tasks/01_CartPole/models.py` が Dueling 用 MLP を構築する。チェックポイントにも `qnet_type` を保存し、Eval・動画再生で同じ構造を読み込む。

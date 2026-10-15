@@ -2,13 +2,13 @@ subtask: default
 algorithm: dqn
 
 run:
-  name: small_model
+  name: large_model
   seed: 42
   max_env_steps: 200000
-  eval_episodes: 10
-  eval_seed_offset: 10000
-  video_seed_offset: 20000
-  log_interval_steps: 10000
+  eval_episodes: 100
+  eval_seed_offset: 0
+  video_seed_offset: 100
+  log_interval_steps: 20000
   video_enabled: true
   video_interval_steps: 20000
   video_episodes: 16
@@ -25,5 +25,5 @@ hyperparameters:
   target_update_interval: 1000
   loss_type: huber
   hidden_sizes:
-    - 32
-    - 32
+    - 512
+    - 512

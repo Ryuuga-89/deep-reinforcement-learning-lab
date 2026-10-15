@@ -1,0 +1,33 @@
+subtask: move
+algorithm: dqn
+
+subtask_options:
+  move_alpha: 0.1
+  move_beta: 100
+
+run:
+  name: less_alpha
+  seed: 42
+  max_env_steps: 200000
+  eval_episodes: 100
+  eval_seed_offset: 0
+  video_seed_offset: 100
+  log_interval_steps: 20000
+  video_enabled: true
+  video_interval_steps: 20000
+  video_episodes: 16
+  save_checkpoint: true
+
+hyperparameters:
+  gamma: 0.99
+  learning_rate: 0.001
+  buffer_size: 50000
+  batch_size: 128
+  epsilon_start: 1.0
+  epsilon_end: 0.01
+  epsilon_decay_steps: 20000
+  target_update_interval: 1000
+  loss_type: huber
+  hidden_sizes:
+    - 128
+    - 128

@@ -1,8 +1,10 @@
 from deep_reinforcement_learning_lab.config.experiment_config import (
     DQNHyperparameters,
+    PERHyperparameters,
     ExperimentConfig,
     ExperimentFlatFields,
     RunConfig,
+    SubtaskOptions,
     archive_experiment_yaml,
     ensure_run_dir_is_new,
     experiment_flat_fields,
@@ -13,9 +15,11 @@ from deep_reinforcement_learning_lab.config.experiment_config import (
 
 __all__ = [
     "DQNHyperparameters",
+    "PERHyperparameters",
     "ExperimentConfig",
     "ExperimentFlatFields",
     "RunConfig",
+    "SubtaskOptions",
     "archive_experiment_yaml",
     "ensure_run_dir_is_new",
     "experiment_flat_fields",
