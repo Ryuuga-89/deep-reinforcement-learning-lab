@@ -46,3 +46,18 @@ PPO は環境を関知しない。特定のモデル構造にも依存せず、`
 ## `RolloutBuffer`
 
 抽象クラス。具体実装 `FixedRolloutBuffer` は固定 `rollout_steps` 容量（部分ロールアウトも `len < rollout_steps` で GAE 可能）。
+
+## 連続行動 `ContinuousPPO`
+
+離散版 `PPO` と同じ GAE・クリップ損失。
+
+- 単一 env: `ContinuousFixedRolloutBuffer`（`push_continuous`）
+- 並列 env: `VectorContinuousFixedRolloutBuffer` — `rollout_steps` は **ベクトル step 数**（各 env あたり）、容量は `rollout_steps × n_envs`。`step_vector` で GAE は **env 列ごと**に計算し、平坦化して学習する。
+
+Actor-Critic モデル（タスク側）が次を実装する。
+
+- `state_value(states) -> Tensor` — バッチの状態価値
+- `sample_action(states) -> (action, log_prob, value)` — 学習時サンプリング（例: ガウス + tanh で `action_space` にスケール、`log_prob` にヤコビアン補正）
+- `evaluate_actions(states, actions) -> (log_prob, entropy)` — 更新時の対数確率とエントロピー
+
+`select_action` は `numpy` ベクトルを返す。評価・録画はタスク側で平均行動（deterministic）を使う。

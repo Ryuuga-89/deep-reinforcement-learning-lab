@@ -28,6 +28,20 @@
 | `ddqn` | `DQNHyperparameters`（DQN と同一） | タスク側が `register_algorithm("ddqn", ...)` で runner を登録 |
 | `per_dqn` | `PERHyperparameters` | タスク側が `register_algorithm("per_dqn", ...)` で runner を登録 |
 | `per_ddqn` | `PERHyperparameters` | タスク側が `register_algorithm("per_ddqn", ...)` で runner を登録 |
+| `ppo` | `PPOHyperparameters` | タスク側が `register_algorithm("ppo", ...)` で runner を登録 |
+
+## PPO ハイパーパラメータ（`hyperparameters:`）
+
+| キー | 説明 |
+|------|------|
+| `gamma`, `learning_rate`, `gae_lambda`, `clip_coef`, `entropy_coef`, `value_coef` | 学習の基本 |
+| `rollout_steps` | **各並列 env あたり**の収集ステップ数（ベクトル step 数） |
+| `n_envs` | 並列環境数（省略時 1）。1 更新あたりの遷移数は `n_envs × rollout_steps` |
+| `n_epochs`, `minibatch_size` | 各ロールアウトのミニバッチ学習 |
+| `hidden_sizes`, `ac_type` | Actor-Critic 構造（`shared` / `separate`） |
+| `clip_value_coef`, `max_grad_norm` | 省略時は価値クリップ = `clip_coef`、勾配クリップ 0.5 |
+
+ローダーは `n_envs * rollout_steps >= minibatch_size` および `minibatch_size >= 2` を要求する。
 
 ## DQN 系ハイパーパラメータ（`hyperparameters:`）
 

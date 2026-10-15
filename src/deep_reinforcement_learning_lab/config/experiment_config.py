@@ -34,7 +34,7 @@ _DQN_HPARAM_OPTIONAL_KEYS = frozenset(
 _PER_HPARAM_OPTIONAL_KEYS = frozenset({"priority_epsilon"})
 
 _PPO_HPARAM_OPTIONAL_KEYS = frozenset(
-    {"hidden_sizes", "ac_type", "clip_value_coef", "max_grad_norm"}
+    {"hidden_sizes", "ac_type", "clip_value_coef", "max_grad_norm", "n_envs"}
 )
 
 
@@ -114,6 +114,11 @@ class PPOHyperparameters:
     ac_type: AcType = "shared"
     clip_value_coef: float | None = None
     max_grad_norm: float = 0.5
+    n_envs: int = 1
+
+    @property
+    def rollout_transitions(self) -> int:
+        return self.n_envs * self.rollout_steps
 
 
 @dataclass(frozen=True)
@@ -190,6 +195,7 @@ def experiment_flat_fields(experiment: ExperimentConfig) -> ExperimentFlatFields
             "hyperparameters/entropy_coef": hparams.entropy_coef,
             "hyperparameters/value_coef": hparams.value_coef,
             "hyperparameters/rollout_steps": hparams.rollout_steps,
+            "hyperparameters/n_envs": hparams.n_envs,
             "hyperparameters/n_epochs": hparams.n_epochs,
             "hyperparameters/minibatch_size": hparams.minibatch_size,
             "hyperparameters/max_grad_norm": hparams.max_grad_norm,
@@ -621,6 +627,19 @@ def _parse_ppo_hyperparameters(raw: dict[str, Any], path: Path) -> PPOHyperparam
     if clip_coef <= 0.0:
         raise ValueError("clip_coef must be positive")
 
+    n_envs = int(raw.get("n_envs", 1))
+    if n_envs <= 0:
+        raise ValueError("n_envs must be a positive integer")
+
+    rollout_transitions = n_envs * rollout_steps
+    if rollout_transitions < minibatch_size:
+        raise ValueError(
+            f"n_envs * rollout_steps ({rollout_transitions}) must be >= "
+            f"minibatch_size ({minibatch_size})"
+        )
+    if minibatch_size < 2:
+        raise ValueError("minibatch_size must be >= 2 for PPO advantage normalization")
+
     return PPOHyperparameters(
         gamma=float(raw["gamma"]),
         learning_rate=float(raw["learning_rate"]),
@@ -635,4 +654,5 @@ def _parse_ppo_hyperparameters(raw: dict[str, Any], path: Path) -> PPOHyperparam
         ac_type=ac_type,
         clip_value_coef=clip_value_coef,
         max_grad_norm=max_grad_norm,
+        n_envs=n_envs,
     )

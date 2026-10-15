@@ -1,0 +1,31 @@
+subtask: default
+algorithm: ppo
+
+run:
+  name: less_n_envs
+  seed: 42
+  max_env_steps: 200000
+  eval_episodes: 100
+  eval_seed_offset: 0
+  video_seed_offset: 100
+  log_interval_steps: 16384
+  video_enabled: true
+  video_interval_steps: 16384
+  video_episodes: 16
+  save_checkpoint: true
+
+hyperparameters:
+  gamma: 0.99
+  learning_rate: 0.0003
+  gae_lambda: 0.95
+  clip_coef: 0.2
+  entropy_coef: 0.0
+  value_coef: 0.5
+  rollout_steps: 4096
+  n_envs: 1
+  n_epochs: 10
+  minibatch_size: 64
+  hidden_sizes:
+    - 64
+    - 64
+  ac_type: shared
