@@ -1,0 +1,2 @@
+base_config: default/baseline_continuous_train.yaml
+seeds: [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]

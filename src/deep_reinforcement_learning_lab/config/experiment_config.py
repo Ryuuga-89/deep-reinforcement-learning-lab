@@ -277,12 +277,7 @@ def ensure_run_dir_is_new(run_dir: Path) -> None:
         )
 
 
-def load_experiment_config(path: Path) -> ExperimentConfig:
-    with path.open(encoding="utf-8") as file:
-        raw: Any = yaml.safe_load(file)
-    if not isinstance(raw, dict):
-        raise ValueError(f"config must be a mapping: {path}")
-
+def load_experiment_config_from_raw(raw: dict[str, Any], path: Path) -> ExperimentConfig:
     allowed_top = {"subtask", "algorithm", "run", "hyperparameters", "subtask_options"}
     unknown_top = set(raw) - allowed_top
     if unknown_top:
@@ -325,6 +320,14 @@ def load_experiment_config(path: Path) -> ExperimentConfig:
         hyperparameters=hyperparameters,
         subtask_options=subtask_options,
     )
+
+
+def load_experiment_config(path: Path) -> ExperimentConfig:
+    with path.open(encoding="utf-8") as file:
+        raw: Any = yaml.safe_load(file)
+    if not isinstance(raw, dict):
+        raise ValueError(f"config must be a mapping: {path}")
+    return load_experiment_config_from_raw(raw, path)
 
 
 def _parse_subtask_options(

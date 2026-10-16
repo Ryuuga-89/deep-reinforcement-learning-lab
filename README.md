@@ -53,6 +53,8 @@ deep-reinforcement-learning-lab
 ├─ docs/
 │  └─ implementation_notes/ 実装に関するメモ
 ├─ tasks/ 各タスク（configs / runs / report など）
-│  └─ 01_CartPole/  （他タスクは順次追加）
+│  ├─ 01_CartPole/
+│  ├─ 02_Pendulum/
+│  └─ 03_LunarLander/
 └─ experiments/ ライブラリの動作実験など
 ```

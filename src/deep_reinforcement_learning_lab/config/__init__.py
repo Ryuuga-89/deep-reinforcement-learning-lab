@@ -11,6 +11,7 @@ from deep_reinforcement_learning_lab.config.experiment_config import (
     experiment_flat_fields,
     format_experiment_flat_fields,
     load_experiment_config,
+    load_experiment_config_from_raw,
     resolve_run_dir,
 )
 
@@ -27,5 +28,6 @@ __all__ = [
     "experiment_flat_fields",
     "format_experiment_flat_fields",
     "load_experiment_config",
+    "load_experiment_config_from_raw",
     "resolve_run_dir",
 ]

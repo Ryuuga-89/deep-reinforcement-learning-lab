@@ -166,6 +166,164 @@ class FixedRolloutBuffer(RolloutBuffer):
         return state
 
 
+class VectorDiscreteFixedRolloutBuffer(RolloutBuffer):
+    """Rollout buffer for ``n_envs`` parallel envs and discrete actions."""
+
+    def __init__(
+        self,
+        rollout_steps: int,
+        n_envs: int,
+        state_dim: int,
+    ) -> None:
+        if n_envs <= 0:
+            raise ValueError("n_envs must be positive")
+        super().__init__(rollout_steps)
+        self._n_envs = n_envs
+        self._state_dim = state_dim
+        capacity = rollout_steps * n_envs
+        self._capacity = capacity
+        self._vector_steps = 0
+        self._states = torch.zeros((capacity, state_dim), dtype=torch.float32)
+        self._actions = torch.zeros(capacity, dtype=torch.long)
+        self._log_probs_old = torch.zeros(capacity, dtype=torch.float32)
+        self._rewards = torch.zeros(capacity, dtype=torch.float32)
+        self._bootstrap_dones = torch.zeros(capacity, dtype=torch.float32)
+        self._values_old = torch.zeros(capacity, dtype=torch.float32)
+        self._advantages = torch.zeros(capacity, dtype=torch.float32)
+        self._returns = torch.zeros(capacity, dtype=torch.float32)
+
+    @property
+    def n_envs(self) -> int:
+        return self._n_envs
+
+    @property
+    def capacity(self) -> int:
+        return self._capacity
+
+    def push(
+        self,
+        state: torch.Tensor,
+        action: int,
+        log_prob: float,
+        reward: float,
+        bootstrap_done: bool,
+        value_old: float,
+    ) -> None:
+        raise TypeError("use push_vector_step() for VectorDiscreteFixedRolloutBuffer")
+
+    def push_vector_step(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        log_probs: torch.Tensor,
+        rewards: torch.Tensor,
+        bootstrap_dones: torch.Tensor,
+        values_old: torch.Tensor,
+    ) -> None:
+        if self.is_full():
+            raise RuntimeError("rollout buffer is full; call clear() after update()")
+
+        states = states.detach().cpu().float()
+        actions = actions.detach().cpu().long().view(-1)
+        log_probs = log_probs.detach().cpu().float().view(-1)
+        rewards = rewards.detach().cpu().float().view(-1)
+        bootstrap_dones = bootstrap_dones.detach().cpu().float().view(-1)
+        values_old = values_old.detach().cpu().float().view(-1)
+
+        if states.shape != (self._n_envs, self._state_dim):
+            raise ValueError(
+                f"states must have shape ({self._n_envs}, {self._state_dim}), "
+                f"got {tuple(states.shape)}"
+            )
+        for tensor, name in (
+            (actions, "actions"),
+            (log_probs, "log_probs"),
+            (rewards, "rewards"),
+            (bootstrap_dones, "bootstrap_dones"),
+            (values_old, "values_old"),
+        ):
+            if tensor.shape != (self._n_envs,):
+                raise ValueError(
+                    f"{name} must have shape ({self._n_envs},), got {tuple(tensor.shape)}"
+                )
+
+        start = self._vector_steps * self._n_envs
+        end = start + self._n_envs
+        self._states[start:end] = states
+        self._actions[start:end] = actions
+        self._log_probs_old[start:end] = log_probs
+        self._rewards[start:end] = rewards
+        self._bootstrap_dones[start:end] = bootstrap_dones
+        self._values_old[start:end] = values_old
+        self._vector_steps += 1
+
+    def is_full(self) -> bool:
+        return self._vector_steps >= self._rollout_steps
+
+    def __len__(self) -> int:
+        return self._vector_steps * self._n_envs
+
+    def clear(self) -> None:
+        self._vector_steps = 0
+
+    def set_advantages(self, advantages: torch.Tensor) -> None:
+        size = len(self)
+        if advantages.shape != (size,):
+            raise ValueError("advantages must have shape (len(buffer),)")
+        self._advantages[:size] = advantages
+
+    def set_returns(self, returns: torch.Tensor) -> None:
+        size = len(self)
+        if returns.shape != (size,):
+            raise ValueError("returns must have shape (len(buffer),)")
+        self._returns[:size] = returns
+
+    def tensor_views(self) -> dict[str, torch.Tensor]:
+        size = len(self)
+        return {
+            "rewards": self._rewards[:size],
+            "bootstrap_dones": self._bootstrap_dones[:size],
+            "values_old": self._values_old[:size],
+        }
+
+    def tensor_views_time_env(self) -> dict[str, torch.Tensor]:
+        t_steps = self._vector_steps
+        size = t_steps * self._n_envs
+        return {
+            "rewards": self._rewards[:size].view(t_steps, self._n_envs),
+            "bootstrap_dones": self._bootstrap_dones[:size].view(t_steps, self._n_envs),
+            "values_old": self._values_old[:size].view(t_steps, self._n_envs),
+        }
+
+    def iter_minibatches(
+        self,
+        minibatch_size: int,
+        *,
+        shuffle: bool,
+    ) -> list[tuple[torch.Tensor, ...]]:
+        if minibatch_size <= 0:
+            raise ValueError("minibatch_size must be positive")
+        size = len(self)
+        if size == 0:
+            raise RuntimeError("buffer is empty")
+
+        indices = torch.randperm(size) if shuffle else torch.arange(size)
+        batches: list[tuple[torch.Tensor, ...]] = []
+        for start in range(0, size, minibatch_size):
+            batch_idx = indices[start : start + minibatch_size]
+            batches.append(
+                (
+                    self._states[batch_idx],
+                    self._actions[batch_idx],
+                    self._log_probs_old[batch_idx],
+                    self._advantages[batch_idx],
+                    self._returns[batch_idx],
+                    self._values_old[batch_idx],
+                )
+            )
+        return batches
+
+
 class ContinuousFixedRolloutBuffer(RolloutBuffer):
     """Fixed-size rollout buffer for continuous actions."""
 

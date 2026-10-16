@@ -5,6 +5,7 @@ from deep_reinforcement_learning_lab.algorithms.PPO.rollout_buffer import (
     FixedRolloutBuffer,
     RolloutBuffer,
     VectorContinuousFixedRolloutBuffer,
+    VectorDiscreteFixedRolloutBuffer,
 )
 
 __all__ = [
@@ -15,4 +16,5 @@ __all__ = [
     "FixedRolloutBuffer",
     "ContinuousFixedRolloutBuffer",
     "VectorContinuousFixedRolloutBuffer",
+    "VectorDiscreteFixedRolloutBuffer",
 ]

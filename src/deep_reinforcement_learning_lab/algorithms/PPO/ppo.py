@@ -6,7 +6,10 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 
-from deep_reinforcement_learning_lab.algorithms.PPO.rollout_buffer import RolloutBuffer
+from deep_reinforcement_learning_lab.algorithms.PPO.rollout_buffer import (
+    RolloutBuffer,
+    VectorDiscreteFixedRolloutBuffer,
+)
 
 
 @dataclass(frozen=True)
@@ -82,6 +85,80 @@ class PPO:
             self._last_log_prob = float(dist.log_prob(action).item())
             self._last_value = float(self._state_value(batch_state).item())
         return self._last_action
+
+    def select_actions(
+        self,
+        states: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        states = states.detach().cpu().float()
+        with torch.no_grad():
+            logits = self._action_logits(states)
+            dist = Categorical(logits=logits)
+            actions = dist.sample()
+            log_probs = dist.log_prob(actions)
+            values = self._state_value(states)
+        return actions, log_probs, values
+
+    def step_vector(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        log_probs: torch.Tensor,
+        rewards: torch.Tensor,
+        bootstrap_dones: torch.Tensor,
+        values_old: torch.Tensor,
+        next_states: torch.Tensor,
+    ) -> RolloutLosses | None:
+        if not isinstance(self.rollout_buffer, VectorDiscreteFixedRolloutBuffer):
+            raise TypeError("step_vector requires VectorDiscreteFixedRolloutBuffer")
+
+        self.rollout_buffer.push_vector_step(
+            states,
+            actions,
+            log_probs,
+            rewards,
+            bootstrap_dones,
+            values_old,
+        )
+
+        if not self.rollout_buffer.is_full():
+            return None
+
+        self.finish_rollout_vector(next_states)
+        return self.update()
+
+    def finish_rollout_vector(self, last_states: torch.Tensor) -> None:
+        if not isinstance(self.rollout_buffer, VectorDiscreteFixedRolloutBuffer):
+            raise TypeError(
+                "finish_rollout_vector requires VectorDiscreteFixedRolloutBuffer"
+            )
+
+        views = self.rollout_buffer.tensor_views_time_env()
+        rewards = views["rewards"]
+        bootstrap_dones = views["bootstrap_dones"]
+        values_old = views["values_old"]
+
+        last_states = last_states.detach().cpu().float()
+        if last_states.dim() == 1:
+            last_states = last_states.unsqueeze(0)
+
+        with torch.no_grad():
+            last_values = self._state_value(last_states)
+
+        advantages = self._compute_gae_multi_env(
+            rewards,
+            bootstrap_dones,
+            values_old,
+            last_values,
+        )
+        values_flat = values_old.reshape(-1)
+        returns = advantages + values_flat
+
+        if self.normalize_advantage:
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
+        self.rollout_buffer.set_advantages(advantages)
+        self.rollout_buffer.set_returns(returns)
 
     def step(
         self,
@@ -242,6 +319,28 @@ class PPO:
             advantages[step] = gae
         return advantages
 
+    def _compute_gae_multi_env(
+        self,
+        rewards: torch.Tensor,
+        bootstrap_dones: torch.Tensor,
+        values_old: torch.Tensor,
+        last_values: torch.Tensor,
+    ) -> torch.Tensor:
+        time_steps, n_envs = rewards.shape
+        advantages = torch.zeros_like(rewards)
+        for env_index in range(n_envs):
+            rewards_env = rewards[:, env_index]
+            dones_env = bootstrap_dones[:, env_index]
+            values_env = values_old[:, env_index]
+            next_values = torch.cat([values_env[1:], last_values[env_index : env_index + 1]])
+            advantages[:, env_index] = self._compute_gae(
+                rewards_env,
+                dones_env,
+                values_env,
+                next_values,
+            )
+        return advantages.reshape(-1)
+
     def _action_logits(self, states: torch.Tensor) -> torch.Tensor:
         return self.ac_model.action_logits(states)
 
@@ -263,7 +362,10 @@ class PPO:
         """GAE + update for a trailing partial rollout (e.g. end of training)."""
         if len(self.rollout_buffer) == 0 or self.rollout_buffer.is_full():
             return None
-        self.finish_rollout(last_state)
+        if isinstance(self.rollout_buffer, VectorDiscreteFixedRolloutBuffer):
+            self.finish_rollout_vector(last_state)
+        else:
+            self.finish_rollout(last_state)
         return self.update()
 
     @staticmethod
