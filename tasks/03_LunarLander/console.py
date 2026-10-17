@@ -80,7 +80,7 @@ def print_run_footer(
     print("-" * 60)
     print(f"Finished at env step {env_step} / {run.max_env_steps}")
     print(
-        f"Final eval ({run.eval_episodes} ep): "
+        f"Exported eval ({run.eval_episodes} ep, best ckpt when saved): "
         f"success {100.0 * metrics.success_rate:.1f}%  "
         f"mean return {metrics.mean_episode_return:.1f}"
     )

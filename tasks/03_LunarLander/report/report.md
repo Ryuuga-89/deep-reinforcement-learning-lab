@@ -1,42 +1,37 @@
 # 03 LunarLander
 
-同一の連続物理環境（`LunarLanderContinuous-v3`）上で、離散 4 択方策と連続 2 次元方策の PPO を比較する。
-本タスクでは **複数 seed（既定 42–51、N=10）** で学習し、統計的に妥当性を評価する。
+PPOを利用した強化学習について、手法やモデルによる性能差を統計的に分析する。
+今回は複数 seed による分析を実施する。
 
-## 設定の正本
+## 統計の扱い（最低限の体裁）
 
-`subtask` は **`default`**。方策は **`model.id`**（連続 / テーブル離散 / 因子分解離散）。出力は `run.name` で分離する。
+- **主指標**: `success_rate`（eval 累積報酬 ≥ 200 の割合）。事前にここだけを主張の根拠にする。
+- **集約**: `analyze_runs.py` が seed ごとの `eval_final.json` から平均・SD・95% CI（t）を出す。
+- **2 条件比較**: 共通 seed 上の **paired t 検定**、差分の 95% CI、Cohen’s d_z。副指標は探索的；必要なら `--holm` で Holm 補正付き p を併記。
+- **評価**: multiseed 比較の正本は **best チェックポイント（`ac_best.pt`）の再評価**（`eval_final.json` の `eval_source: best_checkpoint`）。seed 数は多いほどよい（目安 n≥10）。
+- **ハイパラ**: 条件比較では `entropy_coef` などを揃える（repo の baseline 連続・離散は **`0.01`**）。離散はパターンごとに `run.name` を分け、単一の「代表離散」は置かない。
 
-| 比較軸 | 推奨 `model.id` |
-|--------|-----------------|
-| 連続スロットル | `mlp_actor_critic_continuous` |
-| 独立ヘッド離散（粒度は `head_levels`） | `mlp_factorized_discrete` |
-| 旧 Gymnasium 4 択（joint K） | `mlp_actor_critic_discrete` + `options.table: gymnasium_4` |
-
-| 用途 | 離散 | 連続 |
-|------|------|------|
-| 単発（動画） | [`baseline_discrete_preview.yaml`](../configs/default/baseline_discrete_preview.yaml) | [`baseline_continuous_preview.yaml`](../configs/default/baseline_continuous_preview.yaml) |
-| 統計用学習 | [`baseline_discrete_train.yaml`](../configs/default/baseline_discrete_train.yaml) | [`baseline_continuous_train.yaml`](../configs/default/baseline_continuous_train.yaml) |
-| multiseed | [`baseline_discrete_multiseed.yaml`](../configs/default/baseline_discrete_multiseed.yaml) | [`baseline_continuous_multiseed.yaml`](../configs/default/baseline_continuous_multiseed.yaml) |
-
-環境・モデル契約は [note.md](../note.md)。
-
-## 統計の流れ
-
-1. `run_seeds.py` で `runs/default/ppo/baseline_discrete/seed_XXXX/`（連続は `baseline_continuous`）を生成
-2. 各 seed に `eval_final.json`（`model_id` / `policy_kind` 付き）
-3. `analyze_runs.py --run-dir runs/default/ppo/baseline_discrete`
-4. `--compare runs/default/ppo/baseline_continuous` で paired 比較
-
-### 主指標
-
-- **成功率** `success_rate`: Eval エピソードの累積報酬 ≥ 200 の割合（Gymnasium solved）
-- 補助: `mean_episode_return`、終了理由 3 分類、着陸成功時の燃料・姿勢
+```bash
+# 例: ある離散条件（run.name）と連続 baseline の paired 比較
+uv run python tasks/03_LunarLander/analyze_runs.py \
+  --run-dir tasks/03_LunarLander/runs/default/ppo/<discrete_run_name> \
+  --compare tasks/03_LunarLander/runs/default/ppo/baseline_continuous \
+  --holm
+```
 
 ## 実験メモ
 
-### 離散 vs 連続
+### 出力の離散化による性能・学習の変化
 
-離散 4 択モデル（`mlp_actor_critic_discrete`）と連続モデル（`mlp_actor_critic_continuous`）の学習安定性を比較する。物理 sim と env の action space は共通（連続 2 次元）。
+行動空間が連続の時、あえてモデルの選択肢を減らすアプローチが考えられる。
+これはモデルの出力範囲を制限することで、学習をより早く進行させることを狙っている。
 
-（新実験結果はここに追記。）
+これによってどのように性能が変化するかと、どのように学習が変化するかを分析する。
+
+分析対象は次の3つ
+* 連続: 通常通り、連続領域に対する出力を行う
+* テーブル: あらかじめ行動テーブルを用意しておき、そのどれを行動とするかを分類タスクで決める
+* ビニング: 連続であった出力範囲を離散化し、出力させる。
+
+出力モジュール以外のモデル構造と、ハイパーパラメータ、環境シードは一致させる。
+

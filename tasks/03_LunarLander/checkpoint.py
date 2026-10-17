@@ -190,8 +190,6 @@ class BestCheckpointTracker:
         self.best_success_rate = metrics.success_rate
         self.best_mean_return = metrics.mean_episode_return
         self.best_env_step = env_step
-        if not experiment.run.save_checkpoint:
-            return True
         self.path = save_ac_checkpoint(
             best_checkpoint_path(log_dir),
             ac_model,

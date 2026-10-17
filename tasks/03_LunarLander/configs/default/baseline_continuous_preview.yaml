@@ -22,7 +22,7 @@ hyperparameters:
   learning_rate: 0.0003
   gae_lambda: 0.95
   clip_coef: 0.2
-  entropy_coef: 0.0
+  entropy_coef: 0.01
   value_coef: 0.5
   rollout_steps: 1024
   n_envs: 4

@@ -25,17 +25,20 @@
 
 離散か連続かは **モデル（`model.id`）** が決める。env は常に `Box(2)` のみ。
 
-**推奨（一般化）: `mlp_factorized_discrete`** — 各 env 次元に **独立した離散ヘッド**（`head_levels` で各次元の候補値リスト）。例: 主エンジン `[-1,1]` × 横 `[-1,1]` の 2 バイナリ。`log π` はヘッドごとの和。実装: [`factorized_heads.py`](factorized_heads.py), [`factorized_ppo.py`](factorized_ppo.py)。
+離散は **`model.id` / `model.options` の組み合わせごとに別条件**として試す（代表設定は置かない）。例:
 
-**レガシー比較用: `mlp_actor_critic_discrete`** — 単一 `Categorical(K)` + [`lunar_action_tables.py`](lunar_action_tables.py) の K 点写像（`options.table`）。
+* **`mlp_factorized_discrete`** — env 次元ごとの独立ヘッド（`head_levels` または `preset`）。`log π` はヘッド和。[`factorized_heads.py`](factorized_heads.py), [`factorized_ppo.py`](factorized_ppo.py)
+* **`mlp_actor_critic_discrete`** — 単一 `Categorical(K)` + [`lunar_action_tables.py`](lunar_action_tables.py) の K 点写像（`options.table`）
+
+連続は **`mlp_actor_critic_continuous`**（`baseline_continuous` など `run.name` で識別）。
 
 成功の目安: 1 エピソードの累積報酬が **200 以上**（Gymnasium `reward_threshold`）。
 
 ## 実験する内容
 
 1. [`configs/default/baseline_*_preview.yaml`](configs/default/) で単発・動画付きの動作確認。
-2. 統計用は [`baseline_*_train.yaml`](configs/default/) + [`baseline_*_multiseed.yaml`](configs/default/)。離散 / 連続は **`run.name`**（`baseline_discrete` / `baseline_continuous`）で出力を分ける。
-3. 比較用 YAML は `baseline_*_train.yaml` をコピーし、**1 軸だけ**変える（`run.name` も変える）。
+2. 統計用は `*_train.yaml`（トップレベル `seeds:` 付き）。**条件ごとに `run.name` を変える**（離散パターンごとに別名。`baseline_discrete` は一例）。
+3. 比較用 YAML は既存 train をコピーし、**1 軸だけ**変える（`run.name` も必ず変える）。PPO の **`entropy_coef` は条件間で揃える**（default baseline は `0.01`）。
 
 実験メモは [`report/report.md`](report/report.md)。
 
@@ -114,15 +117,15 @@ uv run python tasks/03_LunarLander/main.py
 uv run python tasks/03_LunarLander/main.py \
   tasks/03_LunarLander/configs/default/baseline_discrete_preview.yaml
 
-# 統計用: seed 42–51（動画オフ train）
+# 統計用: seed 42–51（動画オフ train YAML の seeds: を一括実行）
 uv run python tasks/03_LunarLander/run_seeds.py \
-  tasks/03_LunarLander/configs/default/baseline_discrete_multiseed.yaml
+  tasks/03_LunarLander/configs/default/baseline_discrete_train.yaml
 uv run python tasks/03_LunarLander/run_seeds.py \
-  tasks/03_LunarLander/configs/default/baseline_continuous_multiseed.yaml
+  tasks/03_LunarLander/configs/default/baseline_continuous_train.yaml
 
 # 途中再開
 uv run python tasks/03_LunarLander/run_seeds.py \
-  tasks/03_LunarLander/configs/default/baseline_discrete_multiseed.yaml --skip-existing
+  tasks/03_LunarLander/configs/default/baseline_discrete_train.yaml --skip-existing
 
 # 集約
 uv run python tasks/03_LunarLander/analyze_runs.py \
@@ -130,7 +133,7 @@ uv run python tasks/03_LunarLander/analyze_runs.py \
 
 # discrete vs continuous（paired）
 uv run python tasks/03_LunarLander/analyze_runs.py \
-  --run-dir tasks/03_LunarLander/runs/default/ppo/baseline_discrete \
+  --run-dir tasks/03_LunarLander/runs/default/ppo/<discrete_run_name> \
   --compare tasks/03_LunarLander/runs/default/ppo/baseline_continuous
 
 ```
@@ -140,10 +143,9 @@ uv run python tasks/03_LunarLander/analyze_runs.py \
 | ファイル | 用途 | 出力 `run.name` |
 |----------|------|-----------------|
 | `baseline_*_preview.yaml` | 単発・動画あり | `baseline_*_preview` |
-| `baseline_*_train.yaml` | 統計用（動画オフ） | `baseline_discrete` / `baseline_continuous` |
-| `baseline_*_multiseed.yaml` | `base_config` + `seeds: [42..51]` | （train の `run.name`） |
+| `*_train.yaml` | 統計用（動画オフ・`seeds:` で multiseed） | YAML の `run.name`（離散はパターンごとに別名） |
 
-preview と multiseed は **`run.name` が異なる**ため、同じ `configs/default/` 配下でも出力が混ざらない。
+preview は **`run.name` が `*_preview`** のため、train の出力と混ざらない。`main.py` は `run.seed` のみ使用（`seeds` は無視）。
 
 ## TensorBoard
 
@@ -168,7 +170,7 @@ best チェックポイントは **成功率 → 同率なら平均リターン*
 
 * **旧 run** — `runs/discrete/` / `runs/continuous/` 配下は旧設定のログ。現在は `runs/default/ppo/<run.name>/` と `model.id` を正本とする。
 * **`run_dir` の重複** — `.../seed_XXXX/` が既にある場合は学習を開始しない（`run_seeds.py` は `--skip-existing` でスキップ可）。
-* **`eval_final.json`** — 各 seed run の終端 Eval を JSON 保存。seed 間統計の正本。
+* **`eval_final.json`** — 各 seed の **best ckpt 再評価**メトリクス（`eval_source: best_checkpoint`）。seed 間統計の正本。
 * **GAE の `bootstrap_done`** — `terminated` のみ（墜落）。`truncated`（1000 ステップ上限）はエピソード終了だが bootstrap は次状態を見る。
 * **動画** — 各マス左上に **累積燃料ペナルティ**（`fuel 12.34`＝環境と同じ 0.30×主＋0.03×横の合計）、右上に環境ステップ。`terminated`（墜落）マスは暗転。着陸成功は暗転しない。`truncated` は暗転しない。
 * **Eval / 動画シード** — `eval_seed_offset` / `video_seed_offset`（baseline では `0` / `100`）。

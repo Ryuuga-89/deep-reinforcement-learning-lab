@@ -26,7 +26,7 @@ from config_loader import load_model_config_from_path
 from model_config import ModelConfig
 from run_paths import resolve_run_dir
 from checkpoint import BestCheckpointTracker, checkpoint_path, save_ac_checkpoint
-from eval_export import save_eval_final
+from eval_export import build_eval_export, save_eval_final
 from console import print_progress_line, print_run_footer, print_run_header
 from env import LUNAR_ENV_ACTION_DIM, make_sync_vector_env
 from factorized_ppo import FactorizedPPO, VectorFactorizedRolloutBuffer
@@ -325,15 +325,24 @@ def _run_ppo_training(
         )
         logger.log_experiment_end(experiment, final_metrics)
 
+    export = build_eval_export(
+        run_dir,
+        experiment,
+        tracker,
+        setup.ac_model,
+        env_step,
+    )
     save_eval_final(
         run_dir,
-        final_metrics,
+        export.metrics,
         experiment=experiment,
         config_path=context.config_path,
-        env_step=env_step,
+        env_step=export.env_step,
         model_id=model.id,
         ppo_kind=ppo_kind,
         model_options=dict(model.options),
+        eval_source=export.eval_source,
+        training_end_env_step=env_step,
     )
 
     ckpt: Path | None = None
@@ -353,8 +362,8 @@ def _run_ppo_training(
             eval_success_rate=final_metrics.success_rate,
         )
 
-    print_run_footer(experiment, env_step, final_metrics, ckpt, tracker)
-    return final_metrics.mean_episode_return
+    print_run_footer(experiment, env_step, export.metrics, ckpt, tracker)
+    return export.metrics.mean_episode_return
 
 
 def train_ppo(context: TrainingContext) -> float:

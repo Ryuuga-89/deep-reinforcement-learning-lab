@@ -1,6 +1,8 @@
 subtask: default
 algorithm: ppo
 
+seeds: [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]
+
 model:
   id: mlp_actor_critic_discrete
 
