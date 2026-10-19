@@ -14,13 +14,96 @@
 
 ## 対象となるタスク
 
-1. 倒立振子(CartPole)
-2. 振子(Pendulum)
-3. 月面着陸(LunarLander)
-4. 2Dダンジョン(2D_Dungeon)
+本リポジトリは次の3タスクで完了とする。いずれも Gymnasium の環境を使う。
 
-1-3はGymnasiumライブラリの実装を利用する。
-4は自作する。
+1. 倒立振子(CartPole) — DQN
+2. 振子(Pendulum) — PPO
+3. 月面着陸(LunarLander) — PPO
+
+タスクの説明は `tasks/<task>/note.md`、実験結果は `tasks/<task>/report/report.md` を参照する。
+
+## 可視化
+
+各レポートが参照している図と動画をここに置く。数値と考察は各 `report/report.md` にある。
+
+### CartPole
+
+[レポート](tasks/01_CartPole/report/report.md)
+
+`more_large_model` の 200000 step。台車を揺らしながら倒立を保つ。
+
+![カートが動きながら安定している例](tasks/01_CartPole/report/assets/stable_with_moving.gif)
+
+`center` の `less_alpha`（alpha=0.1）の 200000 step。中央付近で揺れながら戻る。
+
+![less_alpha（alpha=0.1）における200000step目の挙動](tasks/01_CartPole/report/assets/center_less_alpha_step200000.gif)
+
+### Pendulum
+
+[レポート](tasks/02_Pendulum/report/report.md)
+
+`baseline` の決定論方策。16 エピソードのグリッド。
+
+環境ステップ 65536 付近。可視化した全環境が直立した。
+
+![baseline・環境ステップ 65536 付近。初めて可視化の全環境で直立した例](tasks/02_Pendulum/report/assets/baseline_step0065536_all_upright.gif)
+
+環境ステップ 180224 付近。一部の初期条件で倒立しなくなる。
+
+![baseline・環境ステップ 180224 付近。方策の崩壊により倒立しない環境が現れた例](tasks/02_Pendulum/report/assets/baseline_step0180224_collapse.gif)
+
+環境ステップ 196608 付近。同じ位置で倒立できないまま残る。
+
+![baseline・環境ステップ 196608 付近。前回と同様に倒立しない環境が残っている例](tasks/02_Pendulum/report/assets/baseline_step0196608_collapse_continued.gif)
+
+### LunarLander
+
+[レポート](tasks/03_LunarLander/report/report.md)
+
+実験 1。連続、6 点テーブル、軸ごとのビニング。seed 42–51。
+
+![最終成功率。点は seed、線は同じ seed。best チェックポイントの再評価（n=10）。縦軸は 0.65 から](tasks/03_LunarLander/report/assets/exp1_final_success_paired.png)
+
+![学習中の Eval 成功率。線は 10 seed の平均、帯は標準偏差](tasks/03_LunarLander/report/assets/exp1_eval_success_curve.png)
+
+seed 42 の best 方策を、同じ 2 初期条件で再生する。上段が環境シード 142、下段が 143。左から連続、6 点テーブル、ビニング。
+
+![連続・テーブル・ビニングを同じ2初期条件で再生。seed 42 の best チェックポイント](tasks/03_LunarLander/report/assets/exp1_rollout_seed42.gif)
+
+実験 2。行動テーブルの 4 点、6 点、15 点。seed 42–51。
+
+![最終成功率。点は seed、線は同じ seed。best チェックポイントの再評価（n=10）。縦軸は 0.65 から](tasks/03_LunarLander/report/assets/exp2_final_success_paired.png)
+
+![学習中の Eval 成功率。線は 10 seed の平均、帯は標準偏差](tasks/03_LunarLander/report/assets/exp2_eval_success_curve.png)
+
+seed 42 の best 方策。上段が環境シード 142、下段が 143。左から 4 点、6 点、15 点。
+
+![4点・6点・15点を同じ2初期条件で再生。seed 42 の best チェックポイント](tasks/03_LunarLander/report/assets/exp2_rollout_seed42.gif)
+
+## セットアップと実行
+
+Python 3.12 と [uv](https://docs.astral.sh/uv/) を使う。依存関係は次で入れる。
+
+```bash
+uv sync
+```
+
+LunarLander の Box2D は `gymnasium[box2d]` として入る。ビルドに `swig` が必要な環境では、事前にインストールする。
+
+学習は各タスクの `main.py` に実験 YAML を渡す。引数を省略すると、そのタスクの既定設定が使われる。
+
+```bash
+uv run python tasks/01_CartPole/main.py [config.yaml]
+uv run python tasks/02_Pendulum/main.py [config.yaml]
+uv run python tasks/03_LunarLander/main.py [config.yaml]
+```
+
+LunarLander の複数 seed は `run_seeds.py` で回す。
+
+```bash
+uv run python tasks/03_LunarLander/run_seeds.py \
+  tasks/03_LunarLander/configs/default/baseline_continuous_train.yaml
+```
 
 ## 方針
 

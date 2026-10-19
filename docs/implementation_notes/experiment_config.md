@@ -67,8 +67,9 @@ PER 追加キー: `per_alpha`, `per_beta_start`, `per_beta_end`, `priority_epsil
 
 ## 出力
 
-- `run_dir = <task_dir> / "runs" / <subtask> / <algorithm> / <run.name> /`
-- 既存 `run_dir` がある場合は学習を開始しない（タスク `main` の契約）。
+- CartPole と Pendulum の `run_dir` は `<task_dir> / "runs" / <subtask> / <algorithm> / <run.name> /`。実装は `resolve_run_dir`。
+- LunarLander は同じ親の下に `seed_XXXX`（学習 seed の 4 桁）を足す。`run_dir` は `.../<run.name>/seed_XXXX/`。実装は `tasks/03_LunarLander/run_paths.py`。
+- 既存の `run_dir` がある場合は学習を開始しない。LunarLander で見るのは `seed_XXXX` であり、親の `<run.name>/` が既にあっても別 seed は開始できる。
 - TensorBoard はタスク直下の `runs/` を `--logdir` に指定すると、サブタスク・アルゴリズム配下の run をまとめて閲覧できる。
 
 ## 動画（CartPole）
