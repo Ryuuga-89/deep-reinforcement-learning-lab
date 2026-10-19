@@ -25,19 +25,20 @@
 
 離散か連続かは **モデル（`model.id`）** が決める。env は常に `Box(2)` のみ。
 
-離散は **`model.id` / `model.options` の組み合わせごとに別条件**として試す（代表設定は置かない）。例:
+離散か連続かは **`model.id` / `model.options` の組み合わせごとに別条件**として試す。現行 id は次の 3 つ。
 
-* **`mlp_factorized_discrete`** — env 次元ごとの独立ヘッド（`head_levels` または `preset`）。`log π` はヘッド和。[`factorized_heads.py`](factorized_heads.py), [`factorized_ppo.py`](factorized_ppo.py)
-* **`mlp_actor_critic_discrete`** — 単一 `Categorical(K)` + [`lunar_action_tables.py`](lunar_action_tables.py) の K 点写像（`options.table`）
+* **`lunar_binned`** — env 次元ごとの独立ヘッド（`head_levels` または `preset`）。`log π` はヘッド和。[`factorized_heads.py`](factorized_heads.py), [`factorized_ppo.py`](factorized_ppo.py)
+* **`lunar_table`** — 単一 `Categorical(K)` + [`lunar_action_tables.py`](lunar_action_tables.py) の K 点写像（`options.table`）。用意済みは `gymnasium_4`、`main_lateral_6`、`main5_lat3`、`main_on_off`、`lateral_three`
+* **`lunar_continuous`** — tanh-Gaussian。`baseline_continuous` など `run.name` で識別
 
-連続は **`mlp_actor_critic_continuous`**（`baseline_continuous` など `run.name` で識別）。
+旧チェックポイントの `mlp_actor_critic_*` / `mlp_factorized_discrete` は読込時に上の id へ解決する。
 
 成功の目安: 1 エピソードの累積報酬が **200 以上**（Gymnasium `reward_threshold`）。
 
 ## 実験する内容
 
 1. [`configs/default/baseline_*_preview.yaml`](configs/default/) で単発・動画付きの動作確認。
-2. 統計用は `*_train.yaml`（トップレベル `seeds:` 付き）。**条件ごとに `run.name` を変える**（離散パターンごとに別名。`baseline_discrete` は一例）。
+2. 統計用は `*_train.yaml`（トップレベル `seeds:` 付き）。**条件ごとに `run.name` を変える**（例: `table_gymnasium_4`、`table_main_lateral_6`、`table_main5_lat3`）。
 3. 比較用 YAML は既存 train をコピーし、**1 軸だけ**変える（`run.name` も必ず変える）。PPO の **`entropy_coef` は条件間で揃える**（default baseline は `0.01`）。
 
 実験メモは [`report/report.md`](report/report.md)。
@@ -50,7 +51,7 @@ CartPole と同様。
 |------|------|
 | `subtask` | `default`（LunarLander タスク固定） |
 | `algorithm` | `ppo` |
-| `model` | **必須** — `id`（例: `mlp_actor_critic_discrete` / `mlp_actor_critic_continuous`）。登録は [`ac_model_registry.py`](ac_model_registry.py) |
+| `model` | **必須** — `id`（`lunar_table` / `lunar_binned` / `lunar_continuous`）。登録は [`ac_model_registry.py`](ac_model_registry.py) |
 | `run` | シード、ステップ数、ログ・動画・checkpoint |
 | `hyperparameters` | PPO 固有（`ac_type` / `hidden_sizes` など） |
 
@@ -58,7 +59,7 @@ CartPole と同様。
 
 ```yaml
 model:
-  id: mlp_factorized_discrete
+  id: lunar_binned
   options:
     preset: binary_pair   # 省略可。主・横それぞれ 2 値
     # head_levels:        # preset を上書きする場合
@@ -108,33 +109,31 @@ Box2D は `uv sync` で `gymnasium[box2d]` として入る。ビルドに `swig`
 | `run_seeds.py` | 複数 seed 学習スイープ |
 | `eval_export.py` | 学習終了時 `eval_final.json` |
 | `analyze_runs.py` | seed 間の集約・95% CI・任意の paired 比較 |
+| `plot_exp1.py` / `plot_exp2.py` | レポート用の成功率図 |
+| `export_exp1_rollout_gif.py` / `export_exp2_rollout_gif.py` | seed 42 の比較 GIF |
 
 ## 実行方法
 
 ```bash
-# 単発（動画あり preview）
+# 単発（動画あり preview）。引数なしは baseline_continuous_preview
 uv run python tasks/03_LunarLander/main.py
 uv run python tasks/03_LunarLander/main.py \
-  tasks/03_LunarLander/configs/default/baseline_discrete_preview.yaml
+  tasks/03_LunarLander/configs/default/table_gymnasium_4_preview.yaml
 
 # 統計用: seed 42–51（動画オフ train YAML の seeds: を一括実行）
 uv run python tasks/03_LunarLander/run_seeds.py \
-  tasks/03_LunarLander/configs/default/baseline_discrete_train.yaml
-uv run python tasks/03_LunarLander/run_seeds.py \
   tasks/03_LunarLander/configs/default/baseline_continuous_train.yaml
+uv run python tasks/03_LunarLander/run_seeds.py \
+  tasks/03_LunarLander/configs/default/table_gymnasium_4_train.yaml
 
 # 途中再開
 uv run python tasks/03_LunarLander/run_seeds.py \
-  tasks/03_LunarLander/configs/default/baseline_discrete_train.yaml --skip-existing
+  tasks/03_LunarLander/configs/default/table_gymnasium_4_train.yaml --skip-existing
 
-# 集約
+# 集約（主張用の比較は success_rate。--holm は出した指標全体を補正する）
 uv run python tasks/03_LunarLander/analyze_runs.py \
-  --run-dir tasks/03_LunarLander/runs/default/ppo/baseline_discrete
-
-# discrete vs continuous（paired）
-uv run python tasks/03_LunarLander/analyze_runs.py \
-  --run-dir tasks/03_LunarLander/runs/default/ppo/<discrete_run_name> \
-  --compare tasks/03_LunarLander/runs/default/ppo/baseline_continuous
+  --run-dir tasks/03_LunarLander/runs/default/ppo/table_gymnasium_4 \
+  --compare tasks/03_LunarLander/runs/default/ppo/table_main_lateral_6
 
 ```
 
@@ -142,8 +141,8 @@ uv run python tasks/03_LunarLander/analyze_runs.py \
 
 | ファイル | 用途 | 出力 `run.name` |
 |----------|------|-----------------|
-| `baseline_*_preview.yaml` | 単発・動画あり | `baseline_*_preview` |
-| `*_train.yaml` | 統計用（動画オフ・`seeds:` で multiseed） | YAML の `run.name`（離散はパターンごとに別名） |
+| `*_preview.yaml` | 単発・動画あり | `*_preview` |
+| `*_train.yaml` | 統計用（動画オフ・`seeds:` で multiseed） | YAML の `run.name` |
 
 preview は **`run.name` が `*_preview`** のため、train の出力と混ざらない。`main.py` は `run.seed` のみ使用（`seeds` は無視）。
 

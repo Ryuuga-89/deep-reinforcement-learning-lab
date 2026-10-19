@@ -4,9 +4,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-DEFAULT_MODEL_ID = "mlp_actor_critic_discrete"
-
-
 @dataclass(frozen=True)
 class ModelConfig:
     id: str
@@ -27,7 +24,7 @@ def parse_model_config(block: Any, path: Path) -> ModelConfig:
             "(policy is no longer configured here; use model.id)"
         )
 
-    raw_id = block.get("id", DEFAULT_MODEL_ID)
+    raw_id = block.get("id")
     if not isinstance(raw_id, str) or not raw_id.strip():
         raise ValueError(f"model.id must be a non-empty string: {path}")
 

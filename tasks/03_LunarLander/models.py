@@ -406,7 +406,7 @@ def _reject_continuous_options(model: ModelConfig) -> None:
         )
 
 
-def _build_mlp_actor_critic_discrete(
+def _build_lunar_table(
     model: ModelConfig,
     _experiment: ExperimentConfig,
     state_dim: int,
@@ -420,14 +420,14 @@ def _build_mlp_actor_critic_discrete(
     expected_k = int(table.shape[0])
     if action_dim != expected_k:
         raise ValueError(
-            f"discrete model expects rollout action_dim={expected_k} "
+            f"lunar_table expects rollout action_dim={expected_k} "
             f"(table {model.options.get('table', 'gymnasium_4')!r}), got {action_dim}"
         )
     inner = build_discrete_ac_model(ac_type, state_dim, action_dim, hidden_sizes)
     return DiscreteLookupEnvPolicy(inner, table)
 
 
-def _build_mlp_actor_critic_continuous(
+def _build_lunar_continuous(
     model: ModelConfig,
     _experiment: ExperimentConfig,
     state_dim: int,
@@ -440,11 +440,11 @@ def _build_mlp_actor_critic_continuous(
     _reject_continuous_options(model)
     if action_dim != LUNAR_ENV_ACTION_DIM:
         raise ValueError(
-            f"continuous model expects env action_dim={LUNAR_ENV_ACTION_DIM}, "
+            f"lunar_continuous expects env action_dim={LUNAR_ENV_ACTION_DIM}, "
             f"got {action_dim}"
         )
     if action_low is None or action_high is None:
-        raise ValueError("continuous model requires action_low and action_high")
+        raise ValueError("lunar_continuous requires action_low and action_high")
     return build_continuous_ac_model(
         ac_type,
         state_dim,
@@ -455,19 +455,7 @@ def _build_mlp_actor_critic_continuous(
     )
 
 
-register_model(
-    "mlp_actor_critic_discrete",
-    _build_mlp_actor_critic_discrete,
-    ppo_kind="discrete",
-)
-register_model(
-    "mlp_actor_critic_continuous",
-    _build_mlp_actor_critic_continuous,
-    ppo_kind="continuous",
-)
-
-
-def _build_mlp_factorized_discrete(
+def _build_lunar_binned(
     model: ModelConfig,
     _experiment: ExperimentConfig,
     state_dim: int,
@@ -481,7 +469,7 @@ def _build_mlp_factorized_discrete(
     expected = head_config.n_heads
     if action_dim != expected:
         raise ValueError(
-            f"factorized model expects rollout action_dim={expected} (n_heads), "
+            f"lunar_binned expects rollout action_dim={expected} (n_heads), "
             f"got {action_dim}"
         )
     return build_factorized_discrete_ac_model(
@@ -489,11 +477,9 @@ def _build_mlp_factorized_discrete(
     )
 
 
-register_model(
-    "mlp_factorized_discrete",
-    _build_mlp_factorized_discrete,
-    ppo_kind="factorized",
-)
+register_model("lunar_table", _build_lunar_table, ppo_kind="discrete")
+register_model("lunar_continuous", _build_lunar_continuous, ppo_kind="continuous")
+register_model("lunar_binned", _build_lunar_binned, ppo_kind="factorized")
 
 
 def build_model_for_experiment(

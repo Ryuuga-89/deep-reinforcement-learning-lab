@@ -37,6 +37,12 @@ def register_model(model_id: str, builder: ModelBuilder, *, ppo_kind: PpoKind) -
     _PPO_KIND_BY_ID[model_id] = ppo_kind
 
 
+def clear_model_registry() -> None:
+    """Remove all registered models (for tests or before re-registering)."""
+    _REGISTRY.clear()
+    _PPO_KIND_BY_ID.clear()
+
+
 def ppo_kind_for_model(model: ModelConfig) -> PpoKind:
     return resolve_rollout_spec(model, env_action_dim=2).ppo_kind
 
@@ -97,12 +103,24 @@ def registered_model_ids() -> tuple[str, ...]:
     return tuple(sorted(_REGISTRY))
 
 
+_LEGACY_MODEL_ID_MAP: dict[str, str] = {
+    "mlp_actor_critic_discrete": "lunar_table",
+    "mlp_actor_critic_continuous": "lunar_continuous",
+    "mlp_factorized_discrete": "lunar_binned",
+}
+
+
 def resolve_legacy_model_id(model_id: str, policy_kind: str) -> str:
-    """旧 ckpt: model_id=mlp_actor_critic + policy_kind → 現行 id。"""
+    """旧 ckpt の model_id を現行 lunar_* id に解決する。"""
+    mapped = _LEGACY_MODEL_ID_MAP.get(model_id)
+    if mapped is not None:
+        return mapped
     if model_id != "mlp_actor_critic":
         return model_id
     if policy_kind == "discrete":
-        return "mlp_actor_critic_discrete"
+        return "lunar_table"
     if policy_kind == "continuous":
-        return "mlp_actor_critic_continuous"
+        return "lunar_continuous"
+    if policy_kind == "factorized":
+        return "lunar_binned"
     raise ValueError(f"unsupported legacy policy_kind: {policy_kind!r}")

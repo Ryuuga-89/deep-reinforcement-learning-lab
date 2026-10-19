@@ -49,11 +49,35 @@ MAIN_LATERAL_6: np.ndarray = np.array(
     dtype=np.float32,
 )
 
+# 主 5 段 × 横 {左, なし, 右}。MAIN_LATERAL_6 の 6 点を含む。
+# 主の物理出力は 0, 0.625, 0.75, 0.875, 1.0（action>0 だけ点火）。
+MAIN5_LAT3: np.ndarray = np.array(
+    [
+        [-1.0, -1.0],
+        [-1.0, 0.0],
+        [-1.0, 1.0],
+        [0.25, -1.0],
+        [0.25, 0.0],
+        [0.25, 1.0],
+        [0.5, -1.0],
+        [0.5, 0.0],
+        [0.5, 1.0],
+        [0.75, -1.0],
+        [0.75, 0.0],
+        [0.75, 1.0],
+        [1.0, -1.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+    ],
+    dtype=np.float32,
+)
+
 LUNAR_ACTION_TABLES: dict[str, np.ndarray] = {
     "gymnasium_4": GYMNASIUM_4,
     "main_on_off": MAIN_ON_OFF,
     "lateral_three": LATERAL_THREE,
     "main_lateral_6": MAIN_LATERAL_6,
+    "main5_lat3": MAIN5_LAT3,
 }
 
 DEFAULT_DISCRETE_TABLE = "gymnasium_4"

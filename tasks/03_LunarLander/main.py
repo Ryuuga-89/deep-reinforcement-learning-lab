@@ -14,7 +14,7 @@ from train_ppo import train_ppo
 
 TASK_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG_PATH = (
-    TASK_DIR / "configs" / "default" / "baseline_discrete_preview.yaml"
+    TASK_DIR / "configs" / "default" / "baseline_continuous_preview.yaml"
 )
 
 register_algorithm("ppo", train_ppo)

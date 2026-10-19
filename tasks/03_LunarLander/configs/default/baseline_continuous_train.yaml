@@ -4,7 +4,7 @@ algorithm: ppo
 seeds: [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]
 
 model:
-  id: mlp_actor_critic_continuous
+  id: lunar_continuous
 
 run:
   name: baseline_continuous
@@ -13,7 +13,7 @@ run:
   eval_episodes: 100
   eval_seed_offset: 0
   video_seed_offset: 100
-  log_interval_steps: 65536
+  log_interval_steps: 32768
   video_enabled: false
   save_checkpoint: true
 

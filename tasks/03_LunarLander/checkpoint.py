@@ -13,7 +13,7 @@ from ac_model_registry import (
     build_registered_model,
     resolve_legacy_model_id,
 )
-from model_config import DEFAULT_MODEL_ID, ModelConfig
+from model_config import ModelConfig
 import models as _models  # noqa: F401 — register default builders
 
 from policy import EvalMetrics
@@ -124,7 +124,7 @@ def load_ac_checkpoint(path: Path, map_location: str | torch.device = "cpu") -> 
     hidden_sizes = tuple(int(size) for size in payload["hidden_sizes"])
     ac_type = payload.get("ac_type", "shared")
     policy_kind = str(payload.get("policy_kind", "continuous"))
-    raw_model_id = str(payload.get("model_id", DEFAULT_MODEL_ID))
+    raw_model_id = str(payload.get("model_id", "lunar_continuous"))
     model_id = resolve_legacy_model_id(raw_model_id, policy_kind)
     options_raw = payload.get("model_options", {})
     if options_raw is None:
@@ -152,7 +152,7 @@ def load_ac_checkpoint(path: Path, map_location: str | torch.device = "cpu") -> 
     state_dict = payload["state_dict"]
     if (
         policy_kind == "discrete"
-        and model.id == "mlp_actor_critic_discrete"
+        and model.id == "lunar_table"
         and not any(key.startswith("inner.") for key in state_dict)
     ):
         state_dict = {f"inner.{key}": value for key, value in state_dict.items()}
